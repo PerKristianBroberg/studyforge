@@ -24,6 +24,7 @@ class Settings:
     rerank_min_score: float = 0.05
     expert_model: str = "claude-sonnet-5-5"
     router_model: str = "claude-haiku-4-5"  # routing, personas, eval judge
+    calendar_prefix: str = "cal"  # tables cal_events, cal_blocks, cal_prefs
 
     @classmethod
     def from_env(cls) -> "Settings":
