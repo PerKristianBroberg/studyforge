@@ -101,6 +101,7 @@ Persona for course/uni experts is generated once at ingest time from that scope'
 - **Starters:** "Quiz me on weak spots", "Plan this week", "What's due?", "Explain a past exam question".
 - **Custom elements** (React + shadcn): flashcard, quiz, week-view calendar (side panel).
 - **`/library` command:** ingested files per uni/course with ingest status.
+- **Upload from chat:** files attached in Chainlit are saved into `notes/<uni>/<course>/` (scope of the active expert; in Auto mode the user picks uni/course), then incremental ingest runs and its report is posted in chat. Same folder and ingest path as the CLI — no separate upload store. Filenames are sanitised (no path traversal outside `notes/`), only supported extensions are accepted, and a size limit applies. Deleting files from the UI is out of scope.
 - **Full calendar view** = Google Calendar. App-created events are colour-coded per uni and tagged (extended property `unihelper=true`) so personal events are never modified.
 
 ## 7. Data flow
@@ -140,7 +141,7 @@ Each phase ends working and demoable.
 2. **Ingestion:** Docling + LlamaIndex pipeline, metadata, hashing, report.
 3. **Retrieval + evals:** hybrid + rerank + citations; golden set + Ragas in CI.
 4. **Agents v1:** LangGraph supervisor, expert template, course/uni experts, `search_notes`, `make_quiz`; Langfuse tracing.
-5. **Chainlit UI:** chat profiles, steps, citations, starters.
+5. **Chainlit UI:** chat profiles, steps, citations, starters, upload-from-chat.
 6. **MCP server:** FastMCP exposing experts/tools.
 7. **Review + weak spots:** FSRS cards, flashcard/quiz elements, `weak_spots`.
 8. **Calendar:** local calendar, Study coach planning, Google two-way sync, week-view element, welcome dashboard.
