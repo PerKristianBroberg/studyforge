@@ -1,0 +1,15 @@
+{"q": "What is the worst-case running time of quicksort and when does it happen?", "expect": "uni-a/ALG101/sorting.md"}
+{"q": "Which sorting algorithm is stable and always O(n log n)?", "expect": "uni-a/ALG101/sorting.md"}
+{"q": "How do I find shortest paths in an unweighted graph?", "expect": "uni-a/ALG101/graphs.md"}
+{"q": "What algorithm handles shortest paths with non-negative weights?", "expect": "uni-a/ALG101/graphs.md"}
+{"q": "Show me an implementation of randomised quicksort", "expect": "uni-a/ALG101/code/quicksort.py"}
+{"q": "What happens if I am sick on the exam day?", "expect": "uni-a/admin/exam-rules.md"}
+{"q": "What does R-squared measure?", "expect": "uni-b/STAT200/regression.md"}
+{"q": "What is the difference between type I and type II errors?", "expect": "uni-b/STAT200/hypothesis-testing.md"}
+{"q": "What does a p-value mean?", "expect": "uni-b/STAT200/hypothesis-testing.md", "uni": "uni-b", "course": "STAT200"}
+{"q": "Past exam question about interpreting a regression slope", "expect": "uni-b/STAT200/exams/2025-exam.md"}
+{"q": "Hva er det kategoriske imperativ?", "expect": "uni-b/FIL110/etikk.md"}
+{"q": "What does utilitarianism say makes an action right?", "expect": "uni-b/FIL110/etikk.md"}
+{"q": "Who won the 1998 FIFA World Cup?", "expect": null}
+{"q": "How do I bake sourdough bread?", "expect": null}
+{"q": "What is the capital of Australia?", "expect": null}
