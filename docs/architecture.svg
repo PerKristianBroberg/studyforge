@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1010" viewBox="0 0 1600 1010">
+  <style>
+    text { font-family: Inter, "Segoe UI", system-ui, Arial, sans-serif; fill: #1F1F1F; }
+    .h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.6px; }
+    .lead { font-size: 15px; fill: #6F6E68; }
+    .sec { font-size: 12px; font-weight: 700; letter-spacing: 1.6px; fill: #3F6B55; }
+    .t { font-size: 16px; font-weight: 600; letter-spacing: -0.2px; }
+    .l { font-size: 12.5px; fill: #6F6E68; }
+    .tag { font-size: 10.5px; font-weight: 600; }
+    .card { fill: #FFFFFF; stroke: #E6E4DE; stroke-width: 1.2; }
+    .band { fill: #F3F2EE; }
+    .arrow { stroke: #9FB8A9; stroke-width: 2; fill: none; marker-end: url(#head); }
+    .flow { stroke: #C9D8CE; stroke-width: 1.6; fill: none; marker-end: url(#head2); }
+  </style>
+  <defs>
+    <marker id="head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9FB8A9"/></marker>
+    <marker id="head2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#C9D8CE"/></marker>
+  </defs>
+
+  <rect width="1600" height="1010" fill="#FAFAF8"/>
+
+  <!-- title -->
+  <text x="40" y="54" class="h1">studyforge<tspan fill="#3F6B55">.</tspan> <tspan font-weight="400" fill="#6F6E68">— multi-agent RAG study assistant</tspan></text>
+  <text x="40" y="82" class="lead">Local-first: notes, embeddings, vectors and traces stay on the PC. Only the question + the retrieved passages are sent to Claude.</text>
+
+  <!-- ===== Row 1: interfaces ===== -->
+  <text x="40" y="126" class="sec">INTERFACES · CHAINLIT + FASTAPI</text>
+  <g>
+    <rect x="40" y="138" width="360" height="100" rx="12" class="card"/>
+    <text x="60" y="168" class="t">Chat</text>
+    <text x="60" y="192" class="l">Expert picker · live agent steps</text>
+    <text x="60" y="211" class="l">Clickable citations (PDF opens at page)</text>
+    <rect x="430" y="138" width="360" height="100" rx="12" class="card"/>
+    <text x="450" y="168" class="t">Library</text>
+    <text x="450" y="192" class="l">Subjects per university · drag &amp; drop / .zip</text>
+    <text x="450" y="211" class="l">Background indexing with progress · delete</text>
+    <rect x="820" y="138" width="360" height="100" rx="12" class="card"/>
+    <text x="840" y="168" class="t">Calendar</text>
+    <text x="840" y="192" class="l">Exams &amp; arbeidskrav found in your documents</text>
+    <text x="840" y="211" class="l">Availability → study plan · Today / Week</text>
+  </g>
+
+  <!-- ===== Row 2: reasoning ===== -->
+  <line x1="610" y1="240" x2="610" y2="282" class="arrow"/>
+  <text x="40" y="302" class="sec">REASONING · LANGGRAPH</text>
+  <g>
+    <rect x="40" y="314" width="250" height="132" rx="12" class="card"/>
+    <text x="60" y="344" class="t">Supervisor router</text>
+    <text x="60" y="368" class="l">Reads recent turns + expert</text>
+    <text x="60" y="386" class="l">personas, picks the expert</text>
+    <rect x="60" y="406" width="118" height="22" rx="11" fill="#F3ECE3"/>
+    <text x="72" y="421" class="tag" fill="#8A5A2B">Claude Haiku 4.5</text>
+
+    <line x1="292" y1="380" x2="316" y2="380" class="flow"/>
+
+    <rect x="320" y="314" width="360" height="132" rx="12" class="card"/>
+    <text x="340" y="344" class="t">Expert agents</text>
+    <text x="340" y="368" class="l">One per course · per university · general</text>
+    <text x="340" y="386" class="l">Scope-bound tools · cite or say "not in your notes"</text>
+    <rect x="340" y="406" width="126" height="22" rx="11" fill="#F3ECE3"/>
+    <text x="352" y="421" class="tag" fill="#8A5A2B">Claude Sonnet 5.5</text>
+    <rect x="474" y="406" width="150" height="22" rx="11" fill="#EAF1EC"/>
+    <text x="486" y="421" class="tag" fill="#2F5241">Postgres checkpoints</text>
+
+    <rect x="700" y="314" width="220" height="132" rx="12" class="card"/>
+    <text x="720" y="344" class="t">Tools</text>
+    <text x="720" y="368" class="l">search_notes</text>
+    <text x="720" y="386" class="l">make_quiz (structured)</text>
+    <text x="720" y="404" class="l">retriever spans traced</text>
+
+    <rect x="940" y="314" width="240" height="132" rx="12" class="card"/>
+    <text x="960" y="344" class="t">Planning</text>
+    <text x="960" y="368" class="l">Deadline finder (json_schema)</text>
+    <text x="960" y="386" class="l">Deterministic study planner</text>
+    <rect x="960" y="406" width="118" height="22" rx="11" fill="#F3ECE3"/>
+    <text x="972" y="421" class="tag" fill="#8A5A2B">Claude Haiku 4.5</text>
+  </g>
+
+  <!-- ===== Row 3: retrieval ===== -->
+  <line x1="610" y1="448" x2="610" y2="490" class="arrow"/>
+  <text x="40" y="510" class="sec">RETRIEVAL · LLAMAINDEX</text>
+  <g>
+    <rect x="40" y="522" width="360" height="86" rx="12" class="card"/>
+    <text x="60" y="552" class="t">Hybrid search</text>
+    <text x="60" y="576" class="l">Dense top-30 ∪ keyword top-30 · scope filter</text>
+    <line x1="402" y1="565" x2="426" y2="565" class="flow"/>
+    <rect x="430" y="522" width="360" height="86" rx="12" class="card"/>
+    <text x="450" y="552" class="t">Reranker</text>
+    <text x="450" y="576" class="l">bge-reranker-v2-m3 · local cross-encoder</text>
+    <line x1="792" y1="565" x2="816" y2="565" class="flow"/>
+    <rect x="820" y="522" width="360" height="86" rx="12" class="card"/>
+    <text x="840" y="552" class="t">Top-6 cited passages</text>
+    <text x="840" y="576" class="l">Below score floor → "not in your notes"</text>
+  </g>
+
+  <!-- ===== Row 4: storage ===== -->
+  <line x1="610" y1="610" x2="610" y2="652" class="arrow"/>
+  <rect x="30" y="662" width="1160" height="118" rx="16" class="band"/>
+  <text x="46" y="686" class="sec">STORAGE · POSTGRES 17 + PGVECTOR (DOCKER)</text>
+  <g>
+    <rect x="46" y="698" width="268" height="66" rx="10" class="card"/>
+    <text x="62" y="724" class="t">Vectors + full-text</text>
+    <text x="62" y="746" class="l">1024-d · uni/course/type/page</text>
+    <rect x="330" y="698" width="268" height="66" rx="10" class="card"/>
+    <text x="346" y="724" class="t">Ingest manifest</text>
+    <text x="346" y="746" class="l">sha256 per file · skip unchanged</text>
+    <rect x="614" y="698" width="268" height="66" rx="10" class="card"/>
+    <text x="630" y="724" class="t">Conversation state</text>
+    <text x="630" y="746" class="l">LangGraph checkpoints · personas</text>
+    <rect x="898" y="698" width="276" height="66" rx="10" class="card"/>
+    <text x="914" y="724" class="t">Calendar</text>
+    <text x="914" y="746" class="l">events · study blocks · availability</text>
+  </g>
+
+  <!-- ===== Row 5: ingestion ===== -->
+  <line x1="610" y1="832" x2="610" y2="786" class="arrow"/>
+  <text x="40" y="828" class="sec">INGESTION · LOCAL</text>
+  <g>
+    <rect x="40" y="840" width="270" height="100" rx="12" class="card"/>
+    <text x="60" y="870" class="t">Sources</text>
+    <text x="60" y="894" class="l">PDF · PPTX · DOCX · Markdown</text>
+    <text x="60" y="912" class="l">code · .zip · scanned PDFs</text>
+    <line x1="312" y1="890" x2="326" y2="890" class="flow"/>
+    <rect x="330" y="840" width="270" height="100" rx="12" class="card"/>
+    <text x="350" y="870" class="t">Docling</text>
+    <text x="350" y="894" class="l">Layout-aware parsing per page/slide</text>
+    <text x="350" y="912" class="l">EasyOCR fallback (no + en)</text>
+    <line x1="602" y1="890" x2="616" y2="890" class="flow"/>
+    <rect x="620" y="840" width="270" height="100" rx="12" class="card"/>
+    <text x="640" y="870" class="t">Chunking</text>
+    <text x="640" y="894" class="l">Markdown + sentence splitter</text>
+    <text x="640" y="912" class="l">tree-sitter CodeSplitter</text>
+    <line x1="892" y1="890" x2="906" y2="890" class="flow"/>
+    <rect x="910" y="840" width="270" height="100" rx="12" class="card"/>
+    <text x="930" y="870" class="t">Embeddings</text>
+    <text x="930" y="894" class="l">bge-m3 · multilingual · on CPU</text>
+    <text x="930" y="912" class="l">Norwegian + English</text>
+  </g>
+
+  <!-- ===== right column: cross-cutting ===== -->
+  <text x="1222" y="126" class="sec">ACROSS EVERY LAYER</text>
+  <g>
+    <rect x="1222" y="138" width="338" height="150" rx="12" class="card"/>
+    <text x="1242" y="168" class="t">Observability</text>
+    <text x="1242" y="192" class="l">Langfuse, self-hosted (Docker)</text>
+    <text x="1242" y="211" class="l">One trace per chat turn · sessions</text>
+    <text x="1242" y="230" class="l">Tokens, cost, latency per step</text>
+    <text x="1242" y="249" class="l">Localhost-only, telemetry off</text>
+
+    <rect x="1222" y="306" width="338" height="190" rx="12" class="card"/>
+    <text x="1242" y="336" class="t">Evals &amp; CI</text>
+    <text x="1242" y="360" class="l">Retrieval: hit@6 1.00 · MRR 1.00</text>
+    <text x="1242" y="379" class="l">Answers: Ragas faithfulness 0.94</text>
+    <text x="1242" y="398" class="l">Off-topic refusals 3/3</text>
+    <text x="1242" y="417" class="l">106 tests · pytest + GitHub Actions</text>
+    <text x="1242" y="436" class="l">Eval findings drove fixes (routing,</text>
+    <text x="1242" y="455" class="l">grounding) — not threshold tuning</text>
+
+    <rect x="1222" y="514" width="338" height="176" rx="12" class="card"/>
+    <text x="1242" y="544" class="t">Privacy boundary</text>
+    <rect x="1242" y="560" width="14" height="14" rx="3" fill="#EAF1EC" stroke="#9FB8A9"/>
+    <text x="1264" y="572" class="l">On this PC: files, vectors, models, traces</text>
+    <rect x="1242" y="584" width="14" height="14" rx="3" fill="#F3ECE3" stroke="#D8C2A8"/>
+    <text x="1264" y="596" class="l">Anthropic API: question + ≤6 passages</text>
+    <text x="1242" y="624" class="l">Scope-bound tools: an expert can't</text>
+    <text x="1242" y="643" class="l">search outside its course</text>
+    <text x="1242" y="662" class="l">Upload guards: zip-slip · size · origin</text>
+
+    <rect x="1222" y="708" width="338" height="232" rx="12" class="card"/>
+    <text x="1242" y="738" class="t">Stack</text>
+    <text x="1242" y="762" class="l">Python 3.12 · uv · Docker Compose</text>
+    <text x="1242" y="781" class="l">LlamaIndex · LangGraph · LangChain</text>
+    <text x="1242" y="800" class="l">Claude (Anthropic) · sentence-transformers</text>
+    <text x="1242" y="819" class="l">Docling · EasyOCR · tree-sitter</text>
+    <text x="1242" y="838" class="l">Postgres + pgvector · FastAPI</text>
+    <text x="1242" y="857" class="l">Chainlit · Langfuse · Ragas</text>
+    <text x="1242" y="885" class="l">Data plane: LlamaIndex</text>
+    <text x="1242" y="904" class="l">Reasoning plane: LangGraph</text>
+  </g>
+
+  <text x="40" y="986" class="l">github.com/PerKristianBroberg/studyforge</text>
+  <text x="1560" y="986" class="l" text-anchor="end">Local models: bge-m3 · bge-reranker-v2-m3 · EasyOCR — Hosted: Claude Sonnet 5.5 · Haiku 4.5</text>
+</svg>

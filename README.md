@@ -1,5 +1,7 @@
 # studyforge
 
+![studyforge architecture](docs/architecture.svg)
+
 Multi-agent RAG study assistant for studying at two universities at once.
 Local embeddings (bge-m3) and reranking (bge-reranker-v2-m3), Postgres + pgvector hybrid search,
 LlamaIndex data plane. Agents, Chainlit UI, MCP server and calendar are coming in later phases —
