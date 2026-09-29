@@ -34,6 +34,7 @@ def recorded(monkeypatch):
         yield
 
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
+    monkeypatch.setenv("LANGFUSE_HOST", "http://127.0.0.1:3000")
     monkeypatch.setattr("langfuse.get_client", lambda: FakeClient())
     monkeypatch.setattr("langfuse.propagate_attributes", fake_propagate)
     monkeypatch.setattr(tracing, "callbacks", lambda: [])
@@ -50,6 +51,23 @@ def test_disabled_tracing_is_noop(monkeypatch):
     assert tracing.callbacks() == []
     with tracing.observe("chat-turn", "agent", input="q", session_id="t") as obs:
         obs.update(output="a")  # must not raise or contact Langfuse
+
+
+@pytest.mark.parametrize("host,base_url,expected", [
+    (None, None, False),                              # langfuse SDK would default to cloud.langfuse.com
+    ("https://cloud.langfuse.com", None, False),
+    (None, "https://us.cloud.langfuse.com", False),
+    ("http://127.0.0.1:3000", None, True),
+    (None, "http://localhost:3000", True),
+])
+def test_tracing_only_enabled_for_local_langfuse(monkeypatch, host, base_url, expected):
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
+    for var, val in (("LANGFUSE_HOST", host), ("LANGFUSE_BASE_URL", base_url)):
+        if val:
+            monkeypatch.setenv(var, val)
+        else:
+            monkeypatch.delenv(var, raising=False)
+    assert tracing.enabled() is expected
 
 
 def test_chat_turn_is_one_named_trace_per_turn_in_a_session(recorded):

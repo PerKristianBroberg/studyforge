@@ -51,9 +51,16 @@ def main() -> None:
         checkpointer.setup()
         graph, experts = build_app(s, checkpointer)
         print(f"thread {thread} | experts: {', '.join(e.id for e in experts)} | empty line quits")
-        try:
-            while q := input("> ").strip():
-                out = ask(graph, q, args.expert, thread)
-                print(f"[{out['expert_id']}] {out['messages'][-1].text}\n")
-        finally:
-            tracing.flush()  # short-lived CLI: don't lose the last turns' traces
+        repl(graph, args.expert, thread)
+
+
+def repl(graph, requested: str, thread: str, read=input, write=print) -> None:
+    try:
+        while q := read("> ").strip():
+            try:
+                out = ask(graph, q, requested, thread)
+                write(f"[{out['expert_id']}] {out['messages'][-1].text}\n")
+            except Exception as e:  # one failed turn (API overload, timeout) must not end the conversation
+                write(f"error: {e}\n")
+    finally:
+        tracing.flush()  # short-lived CLI: don't lose the last turns' traces

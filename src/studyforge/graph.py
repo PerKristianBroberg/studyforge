@@ -27,6 +27,18 @@ class State(MessagesState):
     expert_id: str
 
 
+def recent(messages: list[BaseMessage], turns: int = 6) -> list[BaseMessage]:
+    """What an expert sees: the last `turns` question/answer pairs without their tool traffic, plus the
+    current turn. Old search results would otherwise be re-sent every turn until the context overflows."""
+    last_human = max((i for i, m in enumerate(messages) if m.type == "human"), default=0)
+    earlier = [m for m in messages[:last_human]
+               if m.type == "human" or (m.type == "ai" and not getattr(m, "tool_calls", None))]
+    earlier = earlier[-2 * turns:]
+    while earlier and earlier[0].type != "human":  # the API wants a user message first
+        earlier.pop(0)
+    return earlier + messages[last_human:]
+
+
 class Route(BaseModel):
     expert_id: str = Field(description="id of the best expert for the student's message")
 
@@ -61,16 +73,28 @@ def build_graph(experts: list[Expert], personas: dict[str, str], expert_llm,
 
     def route(state: State) -> Command:
         wanted = state.get("requested") or "auto"
-        eid = wanted if wanted in by_id else router(state["messages"])
+        if wanted in by_id:
+            eid = wanted
+        else:
+            try:
+                eid = router(state["messages"])
+            except Exception:  # API error / bad JSON: answer with the general expert rather than fail the turn
+                eid = GENERAL.id
         eid = eid if eid in by_id else GENERAL.id
         return Command(goto=by_id[eid].node, update={"expert_id": eid})
+
+    def expert_node(agent):
+        def run(state: State, config):
+            # the checkpoint keeps the full thread; the model only sees recent() of it
+            return {"messages": agent.invoke({"messages": recent(state["messages"])}, config)["messages"]}
+        return run
 
     g = StateGraph(State)
     g.add_node("route", route, destinations=tuple(e.node for e in experts))
     for e in experts:
         prompt = personas.get(e.id, f"You are a study assistant for {e.name}.") + RULES
         tools = make_tools(e.scope, s, quiz_llm or expert_llm)
-        g.add_node(e.node, create_agent(expert_llm, tools, system_prompt=prompt, name=e.node))
+        g.add_node(e.node, expert_node(create_agent(expert_llm, tools, system_prompt=prompt, name=e.node)))
         g.add_edge(e.node, END)
     g.add_edge(START, "route")
     return g.compile(checkpointer=checkpointer)

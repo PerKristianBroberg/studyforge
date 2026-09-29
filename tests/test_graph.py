@@ -60,6 +60,45 @@ def test_router_garbage_falls_back_to_general(seen_scopes):
     assert run(g, "hi", "auto")["expert_id"] == "general"
 
 
+def test_router_error_falls_back_to_general(seen_scopes):
+    def broken_router(messages):
+        raise RuntimeError("529 overloaded")
+
+    g = build_graph(EXPERTS, {}, scripted("ok"), broken_router, Settings(), InMemorySaver())
+    assert run(g, "hi", "auto")["expert_id"] == "general"
+
+
+def test_recent_drops_old_tool_traffic_and_caps_turns():
+    from langchain_core.messages import HumanMessage, ToolMessage
+    from studyforge.graph import recent
+
+    call = AIMessage(content="", tool_calls=[{"name": "search_notes", "args": {"query": "q"}, "id": "c1"}])
+    old = [HumanMessage("q1"), call, ToolMessage("6 long passages", tool_call_id="c1"), AIMessage("a1")]
+    current = [HumanMessage("q2")]
+    assert [m.text for m in recent(old + current)] == ["q1", "a1", "q2"]
+    many = [m for i in range(10) for m in (HumanMessage(f"q{i}"), AIMessage(f"a{i}"))] + current
+    assert [m.text for m in recent(many, turns=2)] == ["q8", "a8", "q9", "a9", "q2"]
+
+
+def test_expert_sees_trimmed_history(seen_scopes):
+    seen_inputs = []
+
+    class Recording(FakeToolModel):
+        def _generate(self, messages, *args, **kwargs):
+            seen_inputs.append([m.type for m in messages])
+            return super()._generate(messages, *args, **kwargs)
+
+    msgs = []
+    for i, text in enumerate(["first", "second"]):
+        msgs += [AIMessage(content="", tool_calls=[{"name": "search_notes", "args": {"query": "q"}, "id": f"c{i}"}]),
+                 AIMessage(content=text)]
+    g = build_graph(EXPERTS, {}, Recording(messages=iter(msgs)), lambda m: "general", Settings(), InMemorySaver())
+    run(g, "question one", "general")
+    run(g, "question two", "general")
+    # 2nd turn's first model call: system, q1, a1, q2 — no tool traffic from turn 1
+    assert seen_inputs[2] == ["system", "human", "ai", "human"]
+
+
 def test_thread_memory(seen_scopes):
     g = build_graph(EXPERTS, {}, scripted("first", "second"), lambda m: "general", Settings(), InMemorySaver())
     run(g, "question one", "general")

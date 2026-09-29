@@ -1,4 +1,5 @@
 import hashlib
+from dataclasses import replace
 from typing import Callable
 
 import sqlalchemy as sa
@@ -26,8 +27,11 @@ def in_scope(path: str, scope: Scope) -> bool:
 
 
 def default_material(expert: Expert, s: Settings) -> str:
-    files = [p for p in Manifest(s).all() if in_scope(p, expert.scope)]
-    hits = retrieval.search(f"main topics of {expert.name}", expert.scope, s)
+    # admin docs (letters, forms) stay out: persona material is sent to Anthropic without a user question
+    files = [p for p in Manifest(s).all()
+             if in_scope(p, expert.scope) and "admin" not in (d.lower() for d in p.split("/")[1:-1])]
+    scope = replace(expert.scope, doc_types=("notes", "code", "exams"))
+    hits = retrieval.search(f"main topics of {expert.name}", scope, s)
     excerpts = "\n\n".join(h.text for h in hits)[:4000]
     return "Files:\n" + "\n".join(files[:50]) + "\n\nExcerpts:\n" + excerpts
 

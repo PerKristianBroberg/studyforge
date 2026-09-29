@@ -17,6 +17,19 @@ class CountingLLM:
         return AIMessage(content=f"You are the INF1010 expert v{self.calls}.")
 
 
+def test_default_material_excludes_admin_docs(db_settings, monkeypatch):
+    from studyforge.personas import default_material
+
+    m = Manifest(db_settings)
+    m.put("UiO/INF1010/heaps.md", "s1", ["UiO/INF1010/heaps.md"])
+    m.put("UiO/admin/enrollment-letter.pdf", "s2", ["UiO/admin/enrollment-letter.pdf"])
+    scopes = []
+    monkeypatch.setattr("studyforge.retrieval.search", lambda q, scope, s: scopes.append(scope) or [])
+    text = default_material(Expert("UiO", "UiO expert", "uni", Scope(uni="UiO")), db_settings)
+    assert "heaps.md" in text and "enrollment-letter" not in text
+    assert "admin" not in scopes[0].doc_types  # admin docs (letters, forms) never go to Anthropic via personas
+
+
 def test_in_scope():
     assert in_scope("UiO/INF1010/a.pdf", Scope(uni="UiO", course="INF1010"))
     assert not in_scope("NTNU/INF1010/a.pdf", Scope(uni="UiO", course="INF1010"))
