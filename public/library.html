@@ -126,8 +126,8 @@ function render(tree) {
             <div class="drop" data-drop>
               <div class="row" style="justify-content:center">
                 <select data-type>${Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
-                <span>Drop files here or <label>browse<input type="file" multiple data-file
-                  accept=".pdf,.pptx,.docx,.md,.txt,.py,.java,.js,.ts,.c,.h,.cpp,.cs,.go,.rs,.r,.sql"></label></span>
+                <span>Drop files or a .zip here, or <label>browse<input type="file" multiple data-file
+                  accept=".zip,.pdf,.pptx,.docx,.md,.txt,.py,.java,.js,.ts,.c,.h,.cpp,.cs,.go,.rs,.r,.sql"></label></span>
               </div>
             </div>
             <ul class="files ${closed.has(key) ? "hidden" : ""}">
@@ -143,6 +143,26 @@ function render(tree) {
 
 async function load() { render((await api("GET", "/api/library")).tree); }
 
+// indexing runs in the background on the server, one file at a time; show progress until it's done
+let polling = false;
+async function watchIndexing(prefix) {
+  if (polling) return;
+  polling = true;
+  try {
+    for (;;) {
+      const s = await api("GET", "/api/library/indexing");
+      if (!s.running) {
+        status(`${prefix}${s.error ? "Indexing failed: " + s.error : "Indexed — " + s.report}`);
+        load();
+        return;
+      }
+      status(`${prefix}Indexing ${s.done}/${s.total || "?"}${s.current ? ": " + s.current : ""}… you can keep working.`);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  } catch (e) { status(`${prefix}Lost contact with the server while indexing (${e.message}). Your files are saved.`); }
+  finally { polling = false; }
+}
+
 async function upload(subjectEl, fileList) {
   if (!fileList.length) return;
   const fd = new FormData();
@@ -150,11 +170,12 @@ async function upload(subjectEl, fileList) {
   fd.append("course", subjectEl.dataset.course);
   fd.append("doc_type", $("[data-type]", subjectEl).value);
   for (const f of fileList) fd.append("files", f);
-  status(`Uploading ${fileList.length} file(s) and indexing… this can take a minute for PDFs.`);
+  status(`Uploading ${fileList.length} file(s)…`);
   try {
     const r = await api("POST", "/api/library/upload", fd);
     render(r.tree);
-    status(`Saved ${r.saved} file(s). ${r.report}${r.rejected.length ? " Rejected: " + r.rejected.join("; ") : ""}`);
+    const note = `Saved ${r.saved} file(s).${r.rejected.length ? " Skipped: " + r.rejected.join("; ") + "." : ""} `;
+    if (r.saved) watchIndexing(note); else status(note);
   } catch (e) { status(`Upload failed: ${e.message}`); }
 }
 
@@ -184,11 +205,11 @@ tree.addEventListener("click", async (e) => {
     load();
   } else if (e.target.matches("[data-del-subject]")) {
     try { const r = await api("DELETE", `/api/library/subject?uni=${encodeURIComponent(subject.dataset.uni)}&course=${encodeURIComponent(subject.dataset.course)}`);
-          render(r.tree); status(`Deleted ${subject.dataset.uni}/${subject.dataset.course}. ${r.report}`); }
+          render(r.tree); watchIndexing(`Deleted ${subject.dataset.uni}/${subject.dataset.course}. `); }
     catch (err) { status(`Not deleted: ${err.message}`); }
   } else if (e.target.matches("[data-del-file]")) {
     try { const r = await api("DELETE", `/api/library/file?path=${encodeURIComponent(e.target.dataset.delFile)}`);
-          render(r.tree); status(`Deleted file. ${r.report}`); }
+          render(r.tree); watchIndexing("Deleted file. "); }
     catch (err) { status(`Not deleted: ${err.message}`); }
   }
 });
@@ -202,7 +223,7 @@ for (const ev of ["dragover", "dragleave", "drop"]) {
     if (ev === "drop") upload(drop.closest(".subject"), e.dataTransfer.files);
   });
 }
-load().catch((e) => status(`Could not load library: ${e.message}`));
+load().then(async () => { if ((await api("GET", "/api/library/indexing")).running) watchIndexing(""); }).catch((e) => status(`Could not load library: ${e.message}`));
 </script>
 </body>
 </html>

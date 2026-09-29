@@ -120,3 +120,11 @@ def test_unreadable_file_is_reported_not_fatal(tmp_path, db_settings, mock_embed
     monkeypatch.setattr(Path, "read_bytes", locked)
     r = ingest.run(tmp_path, db_settings, mock_embed)
     assert r.new == 1 and r.failed[0][0] == "UiO/A/a.md"
+
+
+def test_progress_is_reported_per_file(tmp_path, db_settings, mock_embed):
+    write(tmp_path, "UiO/A/a.md", "Graphs.")
+    write(tmp_path, "UiO/A/b.md", "Trees.")
+    seen = []
+    ingest.run(tmp_path, db_settings, mock_embed, progress=lambda done, total, path: seen.append((done, total, path)))
+    assert seen == [(1, 2, "UiO/A/a.md"), (2, 2, "UiO/A/b.md")]

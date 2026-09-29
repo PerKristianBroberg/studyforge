@@ -27,6 +27,53 @@ def parse_scope(text: str) -> tuple[str, str]:
 
 
 TYPE_DIRS = {"notes": None, "exams": "exams", "code": "code", "admin": "admin"}  # doc type -> subfolder
+ZIP_MAX_TOTAL = 500 * 1024 * 1024
+ZIP_MAX_FILES = 500
+ZIP_JUNK = ("__MACOSX", ".DS_Store", "Thumbs.db")
+
+
+def save_zip(notes_dir: Path, uni: str, course: str, zip_src: Path, doc_type: str = "notes",
+             max_total: int = ZIP_MAX_TOTAL, max_files: int = ZIP_MAX_FILES) -> tuple[list[Path], list[str]]:
+    """Extract supported files from a zip into notes/<uni>/<course>/[type]/..., keeping inner folders.
+    Limits are checked before anything is written (zip bombs); every entry is path-checked (zip slip)."""
+    import zipfile
+    from pathlib import PurePosixPath
+
+    if doc_type not in TYPE_DIRS:
+        raise UploadRejected(f"unknown type: {doc_type!r}")
+    root = notes_dir.resolve()
+    base = root / _segment(uni, "uni") / _segment(course, "course")
+    base = base / TYPE_DIRS[doc_type] if TYPE_DIRS[doc_type] else base
+    try:
+        zf = zipfile.ZipFile(zip_src)
+    except zipfile.BadZipFile:
+        raise UploadRejected("not a valid zip file")
+    with zf:
+        members = [m for m in zf.infolist() if not m.is_dir()]
+        if len(members) > max_files:
+            raise UploadRejected(f"zip has {len(members)} files; the limit is {max_files} files")
+        if sum(m.file_size for m in members) > max_total:
+            raise UploadRejected(f"zip unpacks to more than {max_total // (1024 * 1024)} MB")
+        saved, skipped = [], []
+        for m in members:
+            parts = PurePosixPath(m.filename.replace("\\", "/")).parts
+            if any(p in ZIP_JUNK for p in parts):
+                continue  # OS metadata, not worth reporting
+            try:
+                segs = [_segment(p, "path") for p in parts]
+                if Path(segs[-1]).suffix.lower() not in SUPPORTED_EXTS:
+                    raise UploadRejected("file type not supported")
+                target = base.joinpath(*segs).resolve()
+                if not target.is_relative_to(root):
+                    raise UploadRejected("path escapes notes/")
+            except UploadRejected as e:
+                skipped.append(f"{m.filename}: {e}")
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(m) as src, target.open("wb") as out:
+                shutil.copyfileobj(src, out)
+            saved.append(target)
+    return saved, skipped
 
 
 def save_upload(notes_dir: Path, uni: str, course: str, filename: str, src: Path,

@@ -4,6 +4,7 @@ Mutating endpoints only accept requests whose Origin is this machine: without th
 browser could POST/DELETE to 127.0.0.1 and wipe the notes (Chainlit's CORS allows all origins)."""
 import shutil
 import tempfile
+import threading
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
@@ -15,7 +16,7 @@ from pydantic import BaseModel
 from studyforge import ingest
 from studyforge.config import Settings
 from studyforge.library import add_subject, delete_file, delete_subject, tree
-from studyforge.uploads import UploadRejected, save_upload
+from studyforge.uploads import UploadRejected, save_upload, save_zip
 
 PAGE = Path("public/library.html")
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -31,13 +32,54 @@ def require_local_origin(request: Request) -> None:
         raise HTTPException(403, "requests must come from the studyforge page on this machine")
 
 
-def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: None) -> None:
+class Indexer:
+    """Runs ingest one at a time off the request thread, so big uploads return at once and a crash mid-batch
+    doesn't lose the upload. A request while running is queued as one more pass (it picks up every change)."""
+
+    def __init__(self, s: Settings, on_change: Callable[[], None], background: bool):
+        self.s, self.on_change, self.background = s, on_change, background
+        self.lock, self.pending = threading.Lock(), False
+        self.state = {"running": False, "done": 0, "total": 0, "current": "", "report": "", "error": ""}
+
+    def status(self) -> dict:
+        return dict(self.state)
+
+    def request(self) -> None:
+        with self.lock:
+            if self.state["running"]:
+                self.pending = True
+                return
+            self.state.update(running=True, done=0, total=0, current="", error="")
+        if self.background:
+            threading.Thread(target=self._work, daemon=True).start()
+        else:
+            self._work()
+
+    def _progress(self, done: int, total: int, path: str) -> None:
+        self.state.update(done=done, total=total, current=path)
+
+    def _work(self) -> None:
+        while True:
+            try:
+                self.state["report"] = str(ingest.run(self.s.notes_dir, self.s, progress=self._progress))
+                self.on_change()
+            except Exception as e:  # surfaced on the page; files stay on disk for the next run
+                self.state["error"] = f"{type(e).__name__}: {e}"
+            with self.lock:
+                if not self.pending:
+                    self.state["running"] = False
+                    return
+                self.pending = False
+
+
+def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: None,
+             background: bool = True) -> None:
     router = APIRouter()
+    indexer = Indexer(s, on_change, background)
 
     def changed() -> str:
-        report = str(ingest.run(s.notes_dir, s))
-        on_change()
-        return report
+        indexer.request()
+        return indexer.status()["report"] if not background else ""
 
     def rejected(e: UploadRejected):
         return HTTPException(400, str(e))
@@ -70,11 +112,22 @@ def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: 
                 with src.open("wb") as out:
                     shutil.copyfileobj(f.file, out)
                 try:
-                    save_upload(s.notes_dir, uni, course, f.filename or "", src, doc_type=doc_type)
-                    saved += 1
+                    if (f.filename or "").lower().endswith(".zip"):
+                        extracted, skipped = save_zip(s.notes_dir, uni, course, src, doc_type=doc_type)
+                        saved += len(extracted)
+                        bad += skipped
+                    else:
+                        save_upload(s.notes_dir, uni, course, f.filename or "", src, doc_type=doc_type)
+                        saved += 1
                 except UploadRejected as e:
                     bad.append(f"{f.filename}: {e}")
-        return {"saved": saved, "rejected": bad, "report": changed() if saved else "", "tree": tree(s.notes_dir)}
+        report = changed() if saved else ""
+        return {"saved": saved, "rejected": bad, "report": report, "indexing": indexer.status(),
+                "tree": tree(s.notes_dir)}
+
+    @router.get("/api/library/indexing")
+    def indexing():
+        return indexer.status()
 
     @router.delete("/api/library/file")
     def remove_file(path: str, request: Request):
