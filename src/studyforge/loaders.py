@@ -3,7 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.datamodel.pipeline_options import EasyOcrOptions, OcrMode, PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from llama_index.core import Document
 
@@ -12,11 +12,12 @@ from studyforge.paths import CODE_LANGS, DOCLING_EXTS, FileMeta
 WIKILINK = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
 
 
-@lru_cache(maxsize=1)
-def _converter() -> DocumentConverter:
-    # spec: no handwriting/scans, so OCR stays off (much faster on CPU)
-    pdf = PdfFormatOption(pipeline_options=PdfPipelineOptions(do_ocr=False))
-    return DocumentConverter(format_options={InputFormat.PDF: pdf})
+@lru_cache(maxsize=2)
+def _converter(ocr: bool = False) -> DocumentConverter:
+    # OCR is slow on CPU, so it only runs as a fallback for PDFs without a text layer (scans, photos)
+    opts = (PdfPipelineOptions(do_ocr=True, ocr_options=EasyOcrOptions(lang=["no", "en"], mode=OcrMode.FULL_PAGE))
+            if ocr else PdfPipelineOptions(do_ocr=False))
+    return DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)})
 
 
 def load(file: Path, meta: FileMeta) -> list[Document]:
@@ -32,7 +33,13 @@ def load(file: Path, meta: FileMeta) -> list[Document]:
 
 
 def _load_docling(file: Path, base: dict) -> list[Document]:
-    doc = _converter().convert(file).document
+    docs = _docling_docs(_converter().convert(file).document, base)
+    if not docs and file.suffix.lower() == ".pdf":  # no text layer: scanned or photographed pages
+        docs = _docling_docs(_converter(ocr=True).convert(file).document, base)
+    return docs
+
+
+def _docling_docs(doc, base: dict) -> list[Document]:
     if not doc.pages:  # DOCX has no pages
         text = doc.export_to_markdown(image_placeholder="")
         return [Document(id_=base["path"], text=text, metadata=base)] if text.strip() else []

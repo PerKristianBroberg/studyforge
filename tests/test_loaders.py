@@ -59,3 +59,46 @@ def test_pptx_one_document_per_slide(tmp_path):
     assert [d.metadata["page"] for d in docs] == [1, 2]
     assert [d.id_ for d in docs] == ["UiO/INF1010/slides.pptx#p1", "UiO/INF1010/slides.pptx#p2"]
     assert "LIFO" in docs[0].text and "FIFO" in docs[1].text
+
+
+class _FakeDoc:
+    def __init__(self, text):
+        self.text, self.pages = text, {1: None}
+
+    def export_to_markdown(self, page_no=None, image_placeholder=""):
+        return self.text
+
+
+class _FakeConverter:
+    def __init__(self, text):
+        self.text = text
+
+    def convert(self, file):
+        return type("Result", (), {"document": _FakeDoc(self.text)})()
+
+
+def _pdf(tmp_path):
+    f = tmp_path / "UiB/INF100/scan.pdf"
+    f.parent.mkdir(parents=True)
+    f.write_bytes(b"%PDF-1.4")
+    return f
+
+
+def test_scanned_pdf_falls_back_to_ocr(tmp_path, monkeypatch):
+    from studyforge import loaders
+    calls = []
+    monkeypatch.setattr(loaders, "_converter",
+                        lambda ocr=False: calls.append(ocr) or _FakeConverter("Haugen er et binært tre" if ocr else "  "))
+    f = _pdf(tmp_path)
+    [doc] = load(f, meta_for(tmp_path, "UiB/INF100/scan.pdf"))
+    assert calls == [False, True]
+    assert doc.text == "Haugen er et binært tre" and doc.metadata["page"] == 1
+
+
+def test_text_pdf_does_not_run_ocr(tmp_path, monkeypatch):
+    from studyforge import loaders
+    calls = []
+    monkeypatch.setattr(loaders, "_converter", lambda ocr=False: calls.append(ocr) or _FakeConverter("Real text"))
+    f = _pdf(tmp_path)
+    load(f, meta_for(tmp_path, "UiB/INF100/scan.pdf"))
+    assert calls == [False]  # OCR is slow: only for PDFs without a text layer
