@@ -29,20 +29,21 @@ body {
   border-radius: 1rem;
   background: hsl(var(--card));
 }
-#message-composer:focus-within { border-color: hsl(var(--primary) / 0.45); }
+#message-composer:focus-within { border-color: hsl(var(--primary) / 0.55); }
 
-/* starters: quiet pills */
+/* starters: pale mint pills with green text */
 #starters button {
-  border: 1px solid hsl(var(--border));
+  border: 1px solid hsl(var(--primary) / 0.14);
   border-radius: 999px;
-  background: hsl(var(--card));
-  color: hsl(var(--muted-foreground));
-  font-weight: 400;
-  padding: 0.45rem 1rem;
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  font-weight: 450;
+  padding: 0.45rem 1.05rem;
 }
 #starters button:hover {
-  color: hsl(var(--foreground));
-  border-color: hsl(var(--primary) / 0.4);
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
 }
 
 /* citations: understated accent links */
@@ -61,7 +62,7 @@ pre, code { border-radius: 0.5rem; }
 
 /* landing: larger wordmark with room to breathe */
 img.logo {
-  width: 290px !important;
+  width: 250px !important;
   height: auto !important;
   margin-bottom: 1.25rem !important;
 }

@@ -154,9 +154,9 @@ async def on_message(msg: cl.Message):
 
 AVATARS = Path("public/avatars")
 MONOGRAM = """<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-<circle cx="32" cy="32" r="32" fill="#E9EEF1"/><text x="32" y="40" text-anchor="middle"
+<circle cx="32" cy="32" r="32" fill="#EAF1EC"/><text x="32" y="40" text-anchor="middle"
 font-family="Inter, system-ui, sans-serif" font-size="{size}" font-weight="500"
-fill="#4A6B7C">{text}</text></svg>"""
+fill="#3F6B55">{text}</text></svg>"""
 
 
 def _author(expert_id: str) -> str:
