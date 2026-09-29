@@ -37,3 +37,12 @@ Tracing (optional, local only): `docker compose --env-file .env -f infra/langfus
 then open http://127.0.0.1:3000. The `LANGFUSE_INIT_*` values in `.env` create the org, project, API keys and login
 on first start. Each chat turn is one `chat-turn` trace (session = conversation), with `route-question`,
 `retrieve-notes` (retriever) and `generate-quiz` steps.
+
+## Web UI
+
+```bash
+uv run --env-file .env chainlit run src/studyforge/ui.py --host 127.0.0.1
+```
+
+Open http://127.0.0.1:8000: pick an expert (or Auto), click citations to open sources, drop files to add them to a course,
+`/library` lists what's indexed. Models and expert personas warm up in the background at startup.

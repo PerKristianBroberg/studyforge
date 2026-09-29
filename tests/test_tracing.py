@@ -88,3 +88,17 @@ def test_search_notes_emits_retriever_observation(recorded, monkeypatch):
     assert (obs["name"], obs["as_type"]) == ("retrieve-notes", "retriever")
     assert obs["input"] == {"query": "heaps", "scope": {"uni": "UiO", "course": "INF1010", "doc_types": None}}
     assert recorded["updates"] == [{"output": ["UiO/INF1010/h.pdf p.2"], "metadata": {"scores": [0.912]}}]
+
+
+def test_ask_passes_interface_and_extra_callbacks(recorded):
+    seen = {}
+
+    class Graph:
+        def invoke(self, state, config):
+            seen["callbacks"] = config.get("callbacks")
+            return {"expert_id": "general", "messages": [AIMessage(content="ok")]}
+
+    marker = object()
+    app.ask(Graph(), "hi", "auto", "t9", interface="web", extra_callbacks=[marker])
+    assert recorded["attrs"] == [{"session_id": "t9", "tags": ["interface:web"]}]
+    assert marker in seen["callbacks"]

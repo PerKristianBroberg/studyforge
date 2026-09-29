@@ -1,6 +1,7 @@
 import argparse
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 from langchain_anthropic import ChatAnthropic
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -16,7 +17,9 @@ def build_app(s: Settings, checkpointer):
     experts = discover(s.notes_dir)
     expert_llm = ChatAnthropic(model=s.expert_model, max_tokens=4096)
     fast_llm = ChatAnthropic(model=s.router_model, max_tokens=1024)
-    personas = {e.id: persona(e, s, fast_llm) for e in experts if e.kind != "general"}
+    scoped = [e for e in experts if e.kind != "general"]
+    with ThreadPoolExecutor(max_workers=4) as pool:  # cache misses are one Haiku call each; don't serialise them
+        personas = dict(zip((e.id for e in scoped), pool.map(lambda e: persona(e, s, fast_llm), scoped)))
     graph = build_graph(experts, personas, expert_llm, make_router(fast_llm, experts, personas), s, checkpointer)
     return graph, experts
 
@@ -28,11 +31,14 @@ def run_config(thread_id: str) -> dict:
     return cfg
 
 
-def ask(graph, question: str, requested: str, thread_id: str, interface: str = "cli") -> dict:
+def ask(graph, question: str, requested: str, thread_id: str, interface: str = "cli",
+        extra_callbacks=()) -> dict:
     """One chat turn = one Langfuse trace (input: question, output: answer); turns group by session = thread."""
     with tracing.observe("chat-turn", "agent", input=question,
                          session_id=thread_id, tags=[f"interface:{interface}"]) as turn:
-        out = graph.invoke({"messages": [("user", question)], "requested": requested}, run_config(thread_id))
+        cfg = run_config(thread_id)
+        cfg["callbacks"] = [*cfg.get("callbacks", []), *extra_callbacks]
+        out = graph.invoke({"messages": [("user", question)], "requested": requested}, cfg)
         turn.update(output=out["messages"][-1].text,
                     metadata={"expert_id": out["expert_id"], "requested": requested})
     return out
