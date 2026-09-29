@@ -200,5 +200,12 @@ default_avatar_file_url = ""
     url = "/library"
     target = "_self"
 
+[[UI.header_links]]
+    name = "Calendar"
+    display_name = "Calendar"
+    icon_url = "/public/calendar.svg"
+    url = "/calendar"
+    target = "_self"
+
 [meta]
 generated_by = "2.12.0"

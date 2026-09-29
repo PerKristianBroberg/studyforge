@@ -141,3 +141,11 @@ def test_find_deadlines_without_passages_does_not_call_llm():
     llm = StubLLM([])
     assert find_deadlines("UiB", "INF100", None, llm, MON, search=lambda q, scope, s: []) == []
     assert llm.prompts == []
+
+
+def test_find_deadlines_keeps_every_section_of_the_same_file():
+    exam = Hit("Skriftlig eksamen 8. desember 2026 kl. 09:00.", 0.7, "UiB/INF100/admin/emneplan.pdf", 3, "UiB", "INF100")
+    llm = StubLLM([])
+    find_deadlines("UiB", "INF100", None, llm, MON, search=lambda q, scope, s: [HIT, exam])
+    # same file + page, different chunks: both must reach the model (the exam was being dropped)
+    assert "uke 41" in llm.prompts[0] and "8. desember" in llm.prompts[0]

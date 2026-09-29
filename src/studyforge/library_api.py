@@ -26,7 +26,7 @@ class NewSubject(BaseModel):
     course: str
 
 
-def _require_local_origin(request: Request) -> None:
+def require_local_origin(request: Request) -> None:
     if urlparse(request.headers.get("origin", "")).hostname not in LOCAL_HOSTS:
         raise HTTPException(403, "requests must come from the studyforge page on this machine")
 
@@ -52,7 +52,7 @@ def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: 
 
     @router.post("/api/library/subjects")
     def create(body: NewSubject, request: Request):
-        _require_local_origin(request)
+        require_local_origin(request)
         try:
             add_subject(s.notes_dir, body.uni, body.course)
         except UploadRejected as e:
@@ -62,7 +62,7 @@ def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: 
     @router.post("/api/library/upload")
     def upload(request: Request, uni: str = Form(...), course: str = Form(...), doc_type: str = Form("notes"),
                files: list[UploadFile] = File(...)):
-        _require_local_origin(request)
+        require_local_origin(request)
         saved, bad = 0, []
         with tempfile.TemporaryDirectory() as tmp:
             for f in files:
@@ -78,7 +78,7 @@ def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: 
 
     @router.delete("/api/library/file")
     def remove_file(path: str, request: Request):
-        _require_local_origin(request)
+        require_local_origin(request)
         try:
             delete_file(s.notes_dir, path)
         except UploadRejected as e:
@@ -87,7 +87,7 @@ def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: 
 
     @router.delete("/api/library/subject")
     def remove_subject(uni: str, course: str, request: Request):
-        _require_local_origin(request)
+        require_local_origin(request)
         try:
             delete_subject(s.notes_dir, uni, course)
         except UploadRejected as e:

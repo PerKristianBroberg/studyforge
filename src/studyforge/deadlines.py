@@ -39,8 +39,9 @@ def find_deadlines(uni: str, course: str, s, llm, today: date, search: Callable 
     hits, seen = [], set()
     for q in QUERIES:
         for h in search(q, Scope(uni=uni, course=course), s):
-            if h.cite() not in seen:
-                seen.add(h.cite())
+            key = (h.cite(), h.text)  # one file can yield several chunks with the same citation
+            if key not in seen:
+                seen.add(key)
                 hits.append(h)
     if not hits:
         return []  # nothing to read: don't spend a Claude call
@@ -49,7 +50,7 @@ def find_deadlines(uni: str, course: str, s, llm, today: date, search: Callable 
         "List every exam, arbeidskrav (mandatory assignment), and other deadline they state, with its date as "
         "YYYY-MM-DD and time HH:MM if given. Resolve week numbers ('uke 42') and weekdays ('fredag i uke 41') to a "
         "calendar date in the current or next semester relative to today. Set uncertain=true when the date is "
-        "inferred or ambiguous. Use the passage citation (e.g. 'UiB/INF100/emneplan.pdf p.3') as source. "
+        "inferred (e.g. from a week number) or ambiguous. Include exams (eksamen) as kind 'exam'. Use the passage citation (e.g. 'UiB/INF100/emneplan.pdf p.3') as source. "
         "Only include items stated in the passages; return an empty list if there are none.\n\n"
         + format_hits(hits[:MAX_PASSAGES])
     )

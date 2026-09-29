@@ -8,7 +8,7 @@ import chainlit as cl
 from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg import Connection
 
-from studyforge import app, ingest, library_api
+from studyforge import app, calendar_api, ingest, library_api
 from studyforge.config import Settings
 from studyforge.experts import discover
 from studyforge.sources import cited, passages, split_label
@@ -45,6 +45,7 @@ def _graph():
 from chainlit.server import app as _server  # noqa: E402
 
 library_api.register(_server, S, on_change=lambda: _cached_graph.cache_clear())
+calendar_api.register(_server, S)
 
 
 @cl.on_app_startup

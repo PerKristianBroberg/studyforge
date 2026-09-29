@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendar · studyforge</title>
+<link rel="icon" href="/favicon">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
+<style>
+  :root { --bg: #FAFAF8; --card: #FFFFFF; --ink: #1F1F1F; --muted: #87867F; --line: #EDECE8;
+          --green: #3F6B55; --mint: #EAF1EC; --green-ink: #2F5241; --red: #B4483F; --amber: #9A6B1F; --amber-bg: #F6EEDD; }
+  html.dark { --bg: #171615; --card: #1C1B1A; --ink: #EDEBE6; --muted: #9A988F; --line: #2B2A28;
+              --green: #8DB8A0; --mint: #1C2A22; --green-ink: #B5D3C2; --red: #E07A70; --amber: #E0B36A; --amber-bg: #2E2616; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 400 15px/1.6 Inter, system-ui, sans-serif;
+         -webkit-font-smoothing: antialiased; letter-spacing: -0.006em; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; }
+  header a { color: var(--muted); text-decoration: none; font-size: 14px; margin-left: 18px; }
+  header a:hover { color: var(--ink); }
+  .brand { font-size: 20px; letter-spacing: -0.02em; }
+  .brand b { color: var(--green); font-weight: 400; }
+  main { max-width: 980px; margin: 16px auto 80px; padding: 0 16px; }
+  h1 { font-weight: 500; font-size: 28px; letter-spacing: -0.03em; margin: 0; }
+  .sub { color: var(--muted); margin: 2px 0 20px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  button { font: inherit; font-size: 14px; border-radius: 999px; padding: 7px 16px; cursor: pointer;
+           border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  button:hover { border-color: var(--green); }
+  button.primary { background: var(--green); border-color: var(--green); color: #fff; }
+  button.soft { background: var(--mint); border-color: transparent; color: var(--green-ink); }
+  button.ghost { border-color: transparent; background: transparent; color: var(--muted); padding: 5px 10px; }
+  button.ghost:hover { color: var(--red); }
+  button.danger { background: var(--red); border-color: var(--red); color: #fff; }
+  button:disabled { opacity: .5; cursor: wait; }
+  input, select { font: inherit; font-size: 14px; color: var(--ink); background: var(--card); border: 1px solid var(--line);
+                  border-radius: 10px; padding: 7px 10px; outline: none; }
+  input:focus, select:focus { border-color: var(--green); }
+  .tabs { display: flex; gap: 4px; margin: 22px 0 18px; border-bottom: 1px solid var(--line); }
+  .tab { border: 0; border-radius: 0; background: none; padding: 8px 14px; color: var(--muted); border-bottom: 2px solid transparent; }
+  .tab.on { color: var(--ink); border-bottom-color: var(--green); }
+  .status { background: var(--mint); color: var(--green-ink); border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-top: 14px; display: none; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 6px 18px; }
+  .item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .item:first-child { border-top: 0; }
+  .time { width: 96px; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 14px; }
+  .what { flex: 1; }
+  .what .t { font-weight: 500; }
+  .what .s { color: var(--muted); font-size: 13px; }
+  .done .t { text-decoration: line-through; color: var(--muted); }
+  .tag { font-size: 11px; border-radius: 999px; padding: 1px 9px; background: var(--mint); color: var(--green-ink); white-space: nowrap; }
+  .tag.warn { background: var(--amber-bg); color: var(--amber); }
+  .tag.exam { background: var(--ink); color: var(--bg); }
+  h2 { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--green); margin: 28px 0 8px; }
+  .empty { color: var(--muted); padding: 28px 0; text-align: center; }
+  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+  .day { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; min-height: 180px; }
+  .day.today { border-color: var(--green); }
+  .day h3 { margin: 0 0 8px; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .day.today h3 { color: var(--green); }
+  .chip { border-radius: 8px; background: var(--mint); color: var(--green-ink); padding: 6px 8px; font-size: 12px; margin-bottom: 6px; line-height: 1.35; }
+  .chip.exam-prep { background: var(--amber-bg); color: var(--amber); }
+  .chip.due { background: var(--ink); color: var(--bg); }
+  .chip.isdone { opacity: .45; text-decoration: line-through; }
+  .grid-form { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+  .grid-form label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+  .hidden { display: none; }
+  @media (max-width: 760px) { .week, .grid-form { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<script>try { if (localStorage.getItem("vite-ui-theme") === "dark") document.documentElement.classList.add("dark"); } catch (e) {}</script>
+<header>
+  <span class="brand">studyforge<b>.</b></span>
+  <nav><a href="/library">Library</a><a href="/">← Back to chat</a></nav>
+</header>
+<main>
+  <div class="row" style="justify-content:space-between">
+    <div class="row" style="gap:14px"><img src="/public/mascot.svg" width="58" height="66" alt="">
+      <div><h1>Calendar</h1><div class="sub" id="subtitle"></div></div></div>
+    <div class="row">
+      <button class="soft" id="find">Find deadlines in my documents</button>
+      <button class="primary" id="plan">Plan my studying</button>
+    </div>
+  </div>
+  <div class="status" id="status"></div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="today">Today</button>
+    <button class="tab" data-tab="week">Week</button>
+    <button class="tab" data-tab="deadlines">Deadlines <span id="suggest-count"></span></button>
+    <button class="tab" data-tab="availability">Availability</button>
+  </div>
+
+  <section id="today"></section>
+  <section id="week" class="hidden"></section>
+  <section id="deadlines" class="hidden"></section>
+  <section id="availability" class="hidden"></section>
+</main>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const DAY_NAMES = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" };
+const KIND = { exam: "Exam", arbeidskrav: "Arbeidskrav", deadline: "Deadline", other: "Other" };
+let S = null, weekOffset = 0;
+
+const fmt = (iso, opts) => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", opts);
+const addDays = (iso, n) => { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const daysBetween = (a, b) => Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / 864e5);
+const endTime = (start, min) => { const [h, m] = start.split(":").map(Number); const t = h * 60 + m + min;
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`; };
+
+function status(t) { const el = $("#status"); el.textContent = t; el.style.display = t ? "block" : "none"; }
+
+async function api(method, url, body) {
+  const opts = { method, headers: {} };
+  if (body !== undefined) { opts.body = JSON.stringify(body); opts.headers["Content-Type"] = "application/json"; }
+  const r = await fetch(url, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(typeof data.detail === "string" ? data.detail : r.statusText);
+  return data;
+}
+
+function render() {
+  const confirmed = S.events.filter((e) => e.status === "confirmed");
+  const suggested = S.events.filter((e) => e.status === "suggested");
+  $("#subtitle").textContent = fmt(S.today, { weekday: "long", day: "numeric", month: "long" });
+  $("#suggest-count").innerHTML = suggested.length ? `<span class="tag warn">${suggested.length}</span>` : "";
+  renderToday(confirmed); renderWeek(confirmed); renderDeadlines(confirmed, suggested); renderAvailability();
+}
+
+function blockRow(b) {
+  const label = b.kind === "exam-prep" ? "Exam prep" : b.kind === "assignment" ? "Assignment" : "Study";
+  return `<div class="item ${b.done ? "done" : ""}">
+    <input type="checkbox" data-done="${b.id}" ${b.done ? "checked" : ""} title="Done">
+    <span class="time">${b.start}–${endTime(b.start, b.minutes)}</span>
+    <div class="what"><div class="t">${esc(b.course)} · ${esc(b.topic)}</div><div class="s">${esc(b.uni)}</div></div>
+    <span class="tag ${b.kind === "exam-prep" ? "warn" : ""}">${label}</span>
+    <button class="soft" data-study="${b.id}">Study in chat</button></div>`;
+}
+
+function eventRow(e, actions) {
+  const left = daysBetween(S.today, e.due);
+  const when = left === 0 ? "today" : left === 1 ? "tomorrow" : left < 0 ? "passed" : `in ${left} days`;
+  return `<div class="item">
+    <span class="time">${fmt(e.due, { day: "numeric", month: "short" })}${e.due_time ? " " + esc(e.due_time) : ""}</span>
+    <div class="what"><div class="t">${esc(e.course)} · ${esc(e.title)}</div>
+      <div class="s">${esc(e.uni)} · ${when}${e.source ? " · " + esc(e.source) : ""}</div></div>
+    ${e.uncertain ? `<span class="tag warn">check date</span>` : ""}
+    <span class="tag ${e.kind === "exam" ? "exam" : ""}">${KIND[e.kind]}</span>${actions(e)}</div>`;
+}
+
+function renderToday(confirmed) {
+  const blocks = S.blocks.filter((b) => b.day === S.today);
+  const soon = confirmed.filter((e) => { const d = daysBetween(S.today, e.due); return d >= 0 && d <= 7; });
+  $("#today").innerHTML = `
+    <h2>Today's plan</h2>
+    <div class="card">${blocks.map(blockRow).join("") || `<div class="empty">Nothing planned today${S.blocks.length ? " — enjoy the break." : ". Confirm deadlines, then press <b>Plan my studying</b>."}</div>`}</div>
+    <h2>Due in the next 7 days</h2>
+    <div class="card">${soon.map((e) => eventRow(e, () => "")).join("") || `<div class="empty">Nothing due this week.</div>`}</div>`;
+}
+
+function renderWeek(confirmed) {
+  const monday = addDays(S.today, -((new Date(S.today + "T12:00:00").getDay() + 6) % 7) + 7 * weekOffset);
+  const days = [...Array(7)].map((_, i) => addDays(monday, i));
+  $("#week").innerHTML = `
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <button class="ghost" data-week="-1">← Previous</button>
+      <span>${fmt(days[0], { day: "numeric", month: "short" })} – ${fmt(days[6], { day: "numeric", month: "short", year: "numeric" })}</span>
+      <button class="ghost" data-week="1">Next →</button></div>
+    <div class="week">${days.map((d) => `
+      <div class="day ${d === S.today ? "today" : ""}"><h3>${fmt(d, { weekday: "short", day: "numeric" })}</h3>
+        ${confirmed.filter((e) => e.due === d).map((e) => `<div class="chip due">${KIND[e.kind]}: ${esc(e.course)} ${esc(e.title)}</div>`).join("")}
+        ${S.blocks.filter((b) => b.day === d).map((b) => `<div class="chip ${b.kind} ${b.done ? "isdone" : ""}">${b.start} ${esc(b.course)}<br>${esc(b.topic)}</div>`).join("")}
+      </div>`).join("")}</div>`;
+}
+
+function renderDeadlines(confirmed, suggested) {
+  const subjects = S.subjects.map((s) => `<option value="${esc(s.uni)}|${esc(s.course)}">${esc(s.uni)} · ${esc(s.course)}</option>`).join("");
+  $("#deadlines").innerHTML = `
+    ${suggested.length ? `<h2>Found in your documents — confirm or dismiss</h2><div class="card">${suggested.map((e) =>
+      eventRow(e, (e) => `<button class="primary" data-confirm="${e.id}">Confirm</button><button class="ghost" data-dismiss="${e.id}">Dismiss</button>`)).join("")}</div>` : ""}
+    <h2>Exams and deadlines</h2>
+    <div class="card">${confirmed.map((e) => eventRow(e, (e) => `<span data-slot><button class="ghost" data-arm="${e.id}">Delete</button></span>`)).join("")
+      || `<div class="empty">None yet. Use <b>Find deadlines in my documents</b> or add one below.</div>`}</div>
+    <h2>Add manually</h2>
+    <div class="row">
+      <select id="ev-subject">${subjects || "<option value=''>Add a subject in the Library first</option>"}</select>
+      <select id="ev-kind">${Object.entries(KIND).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+      <input id="ev-title" placeholder="Title, e.g. Arbeidskrav 3" style="flex:1;min-width:180px">
+      <input id="ev-date" type="date"><input id="ev-time" type="time">
+      <button class="primary" id="ev-add">Add</button></div>`;
+}
+
+function renderAvailability() {
+  const p = S.prefs;
+  $("#availability").innerHTML = `
+    <h2>Hours you can study per day</h2>
+    <div class="grid-form">${DAYS.map((d) => `<label>${DAY_NAMES[d]}<input type="number" min="0" max="16" step="0.5" data-hours="${d}" value="${p.hours[d] ?? 0}"></label>`).join("")}</div>
+    <div class="row" style="margin-top:14px">
+      <label style="font-size:13px;color:var(--muted)">Block length (min) <input id="pr-block" type="number" min="15" max="240" step="15" value="${p.block_minutes}" style="width:90px"></label>
+      <label style="font-size:13px;color:var(--muted)">Start at <input id="pr-start" type="number" min="0" max="23" value="${p.start_hour}" style="width:70px">:00</label>
+      <button class="primary" id="pr-save">Save</button></div>`;
+}
+
+async function load() { S = await api("GET", "/api/calendar"); render(); }
+async function act(promise, msg) { try { S = await promise; render(); if (msg) status(msg); } catch (e) { status(e.message); } }
+
+document.addEventListener("click", async (e) => {
+  const t = e.target;
+  if (t.matches(".tab")) {
+    document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("on", x === t));
+    document.querySelectorAll("main > section").forEach((s) => s.classList.toggle("hidden", s.id !== t.dataset.tab));
+  } else if (t.dataset.week) { weekOffset += Number(t.dataset.week); render(); }
+  else if (t.dataset.confirm) act(api("PATCH", `/api/calendar/events/${t.dataset.confirm}`, { status: "confirmed" }), "Confirmed. Press Plan my studying to update your plan.");
+  else if (t.dataset.dismiss) act(api("PATCH", `/api/calendar/events/${t.dataset.dismiss}`, { status: "dismissed" }));
+  else if (t.dataset.arm) { t.parentElement.innerHTML = `<button class="danger" data-del="${t.dataset.arm}">Delete</button><button class="ghost" data-cancel>Cancel</button>`; }
+  else if ("cancel" in t.dataset) render();
+  else if (t.dataset.del) act(api("DELETE", `/api/calendar/events/${t.dataset.del}`), "Deleted.");
+  else if (t.dataset.study) {
+    const b = S.blocks.find((x) => String(x.id) === t.dataset.study);
+    const prompt = b.kind === "exam-prep" ? `Give me a past-exam style question for ${b.course}.`
+      : b.kind === "assignment" ? `Help me get started on ${b.topic} for ${b.course} using my notes.`
+      : `Quiz me on ${b.topic} in ${b.course}.`;
+    try { await navigator.clipboard.writeText(prompt); } catch (err) {}
+    status(`Copied "${prompt}" — paste it in the chat.`);
+    window.open("/", "_blank");
+  } else if (t.id === "ev-add") {
+    const [uni, course] = $("#ev-subject").value.split("|");
+    if (!course || !$("#ev-title").value.trim() || !$("#ev-date").value) return status("Pick a subject and enter a title and date.");
+    act(api("POST", "/api/calendar/events", { uni, course, kind: $("#ev-kind").value, title: $("#ev-title").value.trim(),
+      due: $("#ev-date").value, due_time: $("#ev-time").value || null }), "Added.");
+  } else if (t.id === "pr-save") {
+    const hours = Object.fromEntries(DAYS.map((d) => [d, Number($(`[data-hours=${d}]`).value || 0)]));
+    act(api("PUT", "/api/calendar/prefs", { hours, block_minutes: Number($("#pr-block").value), start_hour: Number($("#pr-start").value) }), "Saved. Press Plan my studying to use it.");
+  } else if (t.id === "plan") {
+    t.disabled = true; await act(api("POST", "/api/calendar/plan"), "Plan updated."); t.disabled = false;
+  } else if (t.id === "find") {
+    t.disabled = true; status("Reading your documents for exams and arbeidskrav… this takes a little while.");
+    try { const r = await api("POST", "/api/calendar/find"); S = r; render();
+      status(r.added ? `Found ${r.added} new item(s) — check them under Deadlines.` : "No new deadlines found in your documents.");
+    } catch (err) { status(`Could not search documents: ${err.message}`); }
+    t.disabled = false;
+  }
+});
+document.addEventListener("change", (e) => {
+  if (e.target.dataset.done) act(api("PATCH", `/api/calendar/blocks/${e.target.dataset.done}`, { done: e.target.checked }));
+});
+load().catch((e) => status(`Could not load calendar: ${e.message}`));
+</script>
+</body>
+</html>
