@@ -22,6 +22,8 @@ class Settings:
     # ponytail: calibration knob — below this rerank score a passage counts as "not in your notes".
     # Tune against the refusal cases in evals/golden.jsonl.
     rerank_min_score: float = 0.05
+    expert_model: str = "claude-sonnet-5-5"
+    router_model: str = "claude-haiku-4-5"  # routing, personas, eval judge
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -38,3 +40,7 @@ class Settings:
             f"postgresql+psycopg2://{self.db_user}:{self.db_password}"
             f"@{self.db_host}:{self.db_port}/{self.db_name}"
         )
+
+    @property
+    def pg_conn(self) -> str:  # psycopg 3 DSN for the LangGraph checkpointer
+        return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"

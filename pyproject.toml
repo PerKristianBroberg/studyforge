@@ -11,6 +11,12 @@ dependencies = [
     "llama-index-postprocessor-sbert-rerank>=0.6",
     "tree-sitter-language-pack",
     "torch>=2.6",
+    "langgraph>=1.2.12",
+    "langchain>=1.4.3",
+    "langchain-anthropic>=1.7.4",
+    "langgraph-checkpoint-postgres>=3.1.2",
+    "psycopg[binary]>=3.3.6",
+    "langfuse>=4.15.6",
 ]
 
 [project.scripts]
@@ -18,7 +24,12 @@ ingest = "studyforge.ingest:main"
 ask = "studyforge.retrieval:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "python-docx", "python-pptx"]
+dev = [
+    "pytest>=8",
+    "python-docx",
+    "python-pptx",
+    "ragas>=0.4.3",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -37,5 +48,8 @@ explicit = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["eval: retrieval-quality evals with real models (slow)"]
-addopts = "-m 'not eval'"
+markers = [
+    "eval: retrieval-quality evals with real models (slow)",
+    "llm_eval: answer-quality evals calling the Claude API (needs ANTHROPIC_API_KEY)",
+]
+addopts = "-m 'not eval and not llm_eval'"

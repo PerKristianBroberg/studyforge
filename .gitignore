@@ -1,6 +1,7 @@
 # private course material — never commit
 notes/
 evals/*.local.jsonl
+.env
 
 .venv/
 __pycache__/

@@ -24,3 +24,15 @@ def test_notes_dir_is_gitignored():
     root = Path(__file__).parent.parent
     r = subprocess.run(["git", "check-ignore", "-q", "notes/uni/course/secret.pdf"], cwd=root)
     assert r.returncode == 0, "notes/ must be gitignored"
+
+
+def test_agent_settings():
+    s = Settings()
+    assert s.expert_model == "claude-sonnet-5-5"
+    assert s.router_model == "claude-haiku-4-5"
+    assert s.pg_conn == "postgresql://studyforge:studyforge@localhost:5433/studyforge"
+
+
+def test_env_file_is_gitignored():
+    root = Path(__file__).parent.parent
+    assert subprocess.run(["git", "check-ignore", "-q", ".env"], cwd=root).returncode == 0
