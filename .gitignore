@@ -1,0 +1,8 @@
+# private course material — never commit
+notes/
+evals/*.local.jsonl
+
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
