@@ -72,3 +72,18 @@ def test_duplicate_node_names_rejected():
     clash = Expert("uio", "x", "uni", Scope(uni="uio"))
     with pytest.raises(ValueError, match="expert_uio"):
         build_graph([GENERAL, UIO, clash], {}, scripted(), lambda m: "general", Settings())
+
+
+def test_router_uses_native_json_schema():
+    from studyforge.graph import Route, make_router
+
+    class StubLLM:
+        def with_structured_output(self, schema, method="function_calling"):
+            assert schema is Route and method == "json_schema"
+            return self
+
+        def invoke(self, prompt):
+            return Route(expert_id="UiO")
+
+    from langchain_core.messages import HumanMessage
+    assert make_router(StubLLM(), EXPERTS)([HumanMessage("exam rules?")]) == "UiO"

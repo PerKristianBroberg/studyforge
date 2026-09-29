@@ -32,7 +32,7 @@ class Route(BaseModel):
 
 def make_router(llm, experts: list[Expert]) -> Callable[[list[BaseMessage]], str]:
     menu = "\n".join(f"- {e.id}: {e.name}" for e in experts)
-    structured = llm.with_structured_output(Route)
+    structured = llm.with_structured_output(Route, method="json_schema")  # Sonnet 5.5 rejects forced tool_choice
 
     def router(messages: list[BaseMessage]) -> str:
         return structured.invoke(

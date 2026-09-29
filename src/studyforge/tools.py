@@ -40,7 +40,7 @@ def make_tools(scope: Scope, s: Settings, quiz_llm: BaseChatModel) -> list[BaseT
         hits = retrieval.search(topic, scope, s)
         if not hits:
             return NOT_IN_NOTES
-        quiz = quiz_llm.with_structured_output(Quiz).invoke(
+        quiz = quiz_llm.with_structured_output(Quiz, method="json_schema").invoke(
             f"Write {n} multiple-choice questions (4 choices each) testing understanding of '{topic}', "
             f"using ONLY these notes. Cite the passage each question comes from.\n\n{format_hits(hits)}"
         )

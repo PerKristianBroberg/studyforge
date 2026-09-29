@@ -11,8 +11,9 @@ class StubQuizLLM:
     def __init__(self):
         self.prompts = []
 
-    def with_structured_output(self, schema):
-        assert schema is Quiz
+    def with_structured_output(self, schema, method="function_calling"):
+        # Sonnet 5.5 rejects forced tool_choice, so structured output must use native json_schema
+        assert schema is Quiz and method == "json_schema"
         return self
 
     def invoke(self, prompt):
