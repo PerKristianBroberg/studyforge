@@ -18,6 +18,10 @@ class Scope:
     course: str | None = None
     doc_types: tuple[str, ...] | None = None
 
+    def __post_init__(self):
+        if self.course and not self.uni:  # same course code can exist at both institutions
+            raise ValueError("course scope requires uni")
+
 
 @dataclass(frozen=True)
 class Hit:

@@ -36,8 +36,9 @@ def _splitters(docs: list[Document]) -> list:
 
 
 def run(root: Path, s: Settings | None = None, embed: BaseEmbedding | None = None) -> Report:
+    if not root.is_dir():  # an empty scan would otherwise "remove" every ingested file
+        raise FileNotFoundError(f"notes dir not found: {root}")
     s = s or Settings.from_env()
-    embed = embed or embed_model(s.embed_model)
     vs, manifest, report = vector_store(s), Manifest(s), Report()
     known = manifest.all()
     files = scan(root)
@@ -51,19 +52,21 @@ def run(root: Path, s: Settings | None = None, embed: BaseEmbedding | None = Non
             report.removed += 1
 
     for file, meta in files:
-        sha = hashlib.sha256(file.read_bytes()).hexdigest()
         old = known.get(meta.path)
-        if old and old[0] == sha:
-            report.unchanged += 1
-            continue
         try:
+            sha = hashlib.sha256(file.read_bytes()).hexdigest()
+            if old and old[0] == sha:
+                report.unchanged += 1
+                continue
             docs = load(file, meta)
             if not docs:
                 raise ValueError("no extractable text (scanned PDF? OCR is disabled)")
-            # doc ids are deterministic per path/page, so this also cleans up a half-finished earlier run
-            for doc_id in old[1] if old else []:
+            embed = embed or embed_model(s.embed_model)  # lazy: a no-change run never loads it
+            nodes = IngestionPipeline(transformations=[*_splitters(docs), embed]).run(documents=docs)
+            # swap only after split+embed succeeded; deleting new ids too cleans up a half-finished earlier run
+            for doc_id in {*(old[1] if old else []), *(d.id_ for d in docs)}:
                 vs.delete(doc_id)
-            IngestionPipeline(transformations=[*_splitters(docs), embed], vector_store=vs).run(documents=docs)
+            vs.add(nodes)
         except Exception as e:  # one bad file must not stop the batch
             report.failed.append((meta.path, f"{type(e).__name__}: {e}"))
             continue

@@ -55,3 +55,9 @@ def test_doc_type_filter(tmp_path, db_settings, mock_embed):
     hits = search("limit", Scope(doc_types=("exams",)), db_settings, mock_embed,
                   FixedScoreRerank(keyword="limit"))
     assert [h.path for h in hits] == ["UiO/A/exams/2024.md"]
+
+
+def test_course_scope_requires_uni():
+    import pytest
+    with pytest.raises(ValueError):
+        Scope(course="MAT1100")
