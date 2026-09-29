@@ -16,7 +16,7 @@ def build_app(s: Settings, checkpointer):
     expert_llm = ChatAnthropic(model=s.expert_model, max_tokens=4096)
     fast_llm = ChatAnthropic(model=s.router_model, max_tokens=1024)
     personas = {e.id: persona(e, s, fast_llm) for e in experts if e.kind != "general"}
-    graph = build_graph(experts, personas, expert_llm, make_router(fast_llm, experts), s, checkpointer)
+    graph = build_graph(experts, personas, expert_llm, make_router(fast_llm, experts, personas), s, checkpointer)
     return graph, experts
 
 

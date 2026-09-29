@@ -16,6 +16,7 @@ RULES = """
 Rules:
 - Call search_notes before answering any question about course content.
 - Answer only from the returned passages and cite them inline like [UiO/INF1010/x.pdf p.3].
+- Stay within what the passages say: no extra background or "for comparison" material. If the notes leave a gap, say so in at most one short sentence.
 - If search_notes returns NOT_IN_NOTES, reply "Not in your notes." and offer general knowledge only if the student asks for it.
 - Use make_quiz when the student asks to be quizzed or tested.
 - Reply in the student's language (Norwegian or English)."""
@@ -30,8 +31,10 @@ class Route(BaseModel):
     expert_id: str = Field(description="id of the best expert for the student's message")
 
 
-def make_router(llm, experts: list[Expert]) -> Callable[[list[BaseMessage]], str]:
-    menu = "\n".join(f"- {e.id}: {e.name}" for e in experts)
+def make_router(llm, experts: list[Expert], personas: dict[str, str] | None = None) -> Callable[[list[BaseMessage]], str]:
+    personas = personas or {}
+    # course codes like ALG101 are opaque, so the router also sees what each expert covers
+    menu = "\n".join(f"- {e.id}: {e.name}. {personas.get(e.id, '')}".rstrip() for e in experts)
     structured = llm.with_structured_output(Route, method="json_schema")  # Sonnet 5.5 rejects forced tool_choice
 
     def router(messages: list[BaseMessage]) -> str:

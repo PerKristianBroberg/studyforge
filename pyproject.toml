@@ -26,6 +26,7 @@ chat = "studyforge.app:main"
 
 [dependency-groups]
 dev = [
+    "langchain-community<0.4.2",
     "pytest>=8",
     "python-docx",
     "python-pptx",

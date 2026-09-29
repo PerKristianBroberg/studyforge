@@ -27,3 +27,6 @@ jobs:
           path: ~/.cache/huggingface
           key: hf-${{ hashFiles('src/studyforge/config.py') }}
       - run: uv run pytest -m eval evals -s
+      - run: uv run pytest -m llm_eval evals -s -rs
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

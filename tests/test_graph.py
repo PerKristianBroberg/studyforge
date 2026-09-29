@@ -87,3 +87,22 @@ def test_router_uses_native_json_schema():
 
     from langchain_core.messages import HumanMessage
     assert make_router(StubLLM(), EXPERTS)([HumanMessage("exam rules?")]) == "UiO"
+
+
+def test_router_menu_includes_personas():
+    from langchain_core.messages import HumanMessage
+    from studyforge.graph import Route, make_router
+
+    class StubLLM:
+        prompt = ""
+
+        def with_structured_output(self, schema, method="function_calling"):
+            return self
+
+        def invoke(self, prompt):
+            StubLLM.prompt = prompt
+            return Route(expert_id="UiO/INF1010")
+
+    personas = {"UiO/INF1010": "You are an expert on algorithms: sorting, graphs and heaps."}
+    make_router(StubLLM(), EXPERTS, personas)([HumanMessage("quicksort code?")])
+    assert "sorting, graphs and heaps" in StubLLM.prompt  # course codes alone are opaque to the router
