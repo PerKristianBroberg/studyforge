@@ -26,15 +26,21 @@ def parse_scope(text: str) -> tuple[str, str]:
     return _segment(parts[0], "uni"), _segment(parts[1], "course")
 
 
+TYPE_DIRS = {"notes": None, "exams": "exams", "code": "code", "admin": "admin"}  # doc type -> subfolder
+
+
 def save_upload(notes_dir: Path, uni: str, course: str, filename: str, src: Path,
-                max_bytes: int = MAX_BYTES) -> Path:
+                max_bytes: int = MAX_BYTES, doc_type: str = "notes") -> Path:
     name = _segment(filename, "file name")
     if Path(name).suffix.lower() not in SUPPORTED_EXTS:
         raise UploadRejected(f"file type not supported: {name}")
+    if doc_type not in TYPE_DIRS:
+        raise UploadRejected(f"unknown type: {doc_type!r}")
     if src.stat().st_size > max_bytes:
         raise UploadRejected(f"{name} is larger than {max_bytes // (1024 * 1024)} MB")
     root = notes_dir.resolve()
-    target = (root / _segment(uni, "uni") / _segment(course, "course") / name).resolve()
+    folder = root / _segment(uni, "uni") / _segment(course, "course")
+    target = (folder / TYPE_DIRS[doc_type] / name if TYPE_DIRS[doc_type] else folder / name).resolve()
     if not target.is_relative_to(root):  # belt and braces on top of the segment checks
         raise UploadRejected(f"invalid path: {name}")
     target.parent.mkdir(parents=True, exist_ok=True)
