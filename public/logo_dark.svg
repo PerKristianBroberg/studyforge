@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40" viewBox="0 0 200 40">
+  <circle cx="11" cy="20" r="7" fill="none" stroke="#9DB7C6" stroke-width="1.8"/>
+  <circle cx="11" cy="20" r="2.2" fill="#9DB7C6"/>
+  <text x="28" y="27" font-family="Inter, system-ui, sans-serif" font-size="21" font-weight="400" letter-spacing="-0.4" fill="#EDEBE6">studyforge</text>
+</svg>

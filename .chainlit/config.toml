@@ -116,7 +116,7 @@ reaction_on_message_received = false
 # Name of the assistant.
 name = "studyforge"
 
-# default_theme = "dark"
+default_theme = "light"
 
 # Force a specific language for all users (e.g., "en-US", "he-IL", "fr-FR")
 # If not set, the browser's language will be used
@@ -136,14 +136,14 @@ name = "studyforge"
 confirm_new_chat = true
 
 # Description of the assistant. This is used for HTML tags.
-# description = ""
+description = "Study assistant for your university notes"
 
 # Chain of Thought (CoT) display mode. Can be "hidden", "tool_call" or "full".
 cot = "full"
 
 # Specify a CSS file that can be used to customize the user interface.
 # The CSS file can be served from the public directory or via an external link.
-# custom_css = "/public/test.css"
+custom_css = "/public/custom.css"
 
 # Specify additional attributes for a custom CSS file
 # custom_css_attributes = "media=\"print\""

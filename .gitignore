@@ -7,3 +7,5 @@ evals/*.local.jsonl
 __pycache__/
 .pytest_cache/
 *.egg-info/
+public/avatars/*
+!public/avatars/studyforge.svg

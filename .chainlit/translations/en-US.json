@@ -58,7 +58,7 @@
     },
     "chat": {
         "input": {
-            "placeholder": "Type your message here...",
+            "placeholder": "Ask about your notes…",
             "actions": {
                 "send": "Send message",
                 "stop": "Stop Task",

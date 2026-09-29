@@ -148,5 +148,25 @@ async def on_message(msg: cl.Message):
     )
     answer = out["messages"][-1].text
     tool_texts = [m.text for m in out["messages"] if m.type == "tool"]
-    await cl.Message(content=answer, author=out["expert_id"],
+    await cl.Message(content=answer, author=_author(out["expert_id"]),
                      elements=_source_elements(answer, tool_texts)).send()
+
+
+AVATARS = Path("public/avatars")
+MONOGRAM = """<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+<circle cx="32" cy="32" r="32" fill="#E9EEF1"/><text x="32" y="40" text-anchor="middle"
+font-family="Inter, system-ui, sans-serif" font-size="{size}" font-weight="500"
+fill="#4A6B7C">{text}</text></svg>"""
+
+
+def _author(expert_id: str) -> str:
+    """Short author name (Chainlit avatar ids can't contain '/'), with a monogram avatar on disk."""
+    if expert_id == "general":
+        return "studyforge"  # falls back to the favicon mark
+    name = expert_id.split("/")[-1]
+    avatar = AVATARS / f"{name.strip().lower().replace(' ', '_').replace('.', '_')}.svg"
+    if not avatar.exists():
+        text = (name[:3] if len(name) <= 6 else name[:2]).upper()
+        AVATARS.mkdir(parents=True, exist_ok=True)
+        avatar.write_text(MONOGRAM.format(text=text, size=22 if len(text) == 3 else 26), encoding="utf-8")
+    return name
