@@ -8,12 +8,11 @@ import chainlit as cl
 from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg import Connection
 
-from studyforge import app, ingest
+from studyforge import app, ingest, library_api
 from studyforge.config import Settings
 from studyforge.experts import discover
 from studyforge.sources import cited, passages, split_label
 from studyforge.store import Manifest
-from studyforge.library import add_subject, delete_file, delete_subject, tree
 from studyforge.uploads import UploadRejected, parse_scope, save_upload
 
 S = Settings.from_env()
@@ -40,6 +39,12 @@ def _cached_graph():
 def _graph():
     with _build_lock:  # lru_cache alone lets two first requests build (and load the models) twice
         return _cached_graph()
+
+
+# the /library page (public/library.html + JSON API) lives on Chainlit's own FastAPI server
+from chainlit.server import app as _server  # noqa: E402
+
+library_api.register(_server, S, on_change=lambda: _cached_graph.cache_clear())
 
 
 @cl.on_app_startup
@@ -130,97 +135,8 @@ def _source_elements(answer: str, tool_texts: list[str]) -> list:
     return elements
 
 
-# --- Subjects panel (public/elements/Subjects.jsx) ---------------------------------------------
-
-UPLOAD_ACCEPT = {
-    "application/pdf": [".pdf"],
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-    "text/plain": [".md", ".txt", ".py", ".java", ".js", ".ts", ".c", ".h", ".cpp", ".cs", ".go", ".rs", ".r", ".sql"],
-}
-
-
-@cl.on_chat_start
-async def start():
-    await cl.context.emitter.set_commands([
-        {"id": "Subjects", "icon": "folder", "description": "Add subjects and upload notes", "button": True, "persistent": False},
-    ])
-    await _show_subjects()
-
-
-async def _show_subjects(status: str | None = None) -> None:
-    el = cl.CustomElement(name="Subjects", props={"tree": tree(S.notes_dir), "status": status}, display="inline")
-    cl.user_session.set("subjects_el", el)
-    await cl.Message(content="", author="studyforge", elements=[el]).send()
-
-
-async def _refresh_subjects(status: str) -> None:
-    el = cl.user_session.get("subjects_el")
-    if not el:
-        return await _show_subjects(status)
-    el.props = {"tree": tree(S.notes_dir), "status": status}
-    await el.update()
-
-
-async def _reindex() -> str:
-    report = await cl.make_async(ingest.run)(S.notes_dir, S)
-    if report.new or report.removed:
-        _cached_graph.cache_clear()  # subjects changed: experts are rebuilt for the next chat
-    return str(report).replace("\n", " ")
-
-
-@cl.action_callback("subjects_add")
-async def on_add(action: cl.Action):
-    try:
-        folder = add_subject(S.notes_dir, action.payload["uni"], action.payload["course"])
-        await _refresh_subjects(f"Added {folder.parent.name}/{folder.name}. Upload notes to it to create its expert.")
-    except UploadRejected as e:
-        await _refresh_subjects(f"Not added: {e}")
-
-
-@cl.action_callback("subjects_upload")
-async def on_upload(action: cl.Action):
-    uni, course, doc_type = action.payload["uni"], action.payload["course"], action.payload["doc_type"]
-    files = await cl.AskFileMessage(
-        content=f"Upload **{doc_type}** for **{uni}/{course}** — PDF, PPTX, DOCX, Markdown or code.",
-        accept=UPLOAD_ACCEPT, max_size_mb=50, max_files=20, timeout=600,
-    ).send()
-    if not files:
-        return await _refresh_subjects("Upload cancelled.")
-    saved, rejected = 0, []
-    for f in files:
-        try:
-            save_upload(S.notes_dir, uni, course, f.name, Path(f.path), doc_type=doc_type)
-            saved += 1
-        except UploadRejected as e:
-            rejected.append(str(e))
-    status = f"Saved {saved} file(s) to {uni}/{course}. " + (await _reindex() if saved else "")
-    await _refresh_subjects(status + (" Rejected: " + "; ".join(rejected) if rejected else ""))
-
-
-@cl.action_callback("subjects_delete_file")
-async def on_delete_file(action: cl.Action):
-    try:
-        delete_file(S.notes_dir, action.payload["path"])
-        await _refresh_subjects(f"Deleted {action.payload['path']}. " + await _reindex())
-    except UploadRejected as e:
-        await _refresh_subjects(f"Not deleted: {e}")
-
-
-@cl.action_callback("subjects_delete_subject")
-async def on_delete_subject(action: cl.Action):
-    uni, course = action.payload["uni"], action.payload["course"]
-    try:
-        delete_subject(S.notes_dir, uni, course)
-        await _refresh_subjects(f"Deleted subject {uni}/{course}. " + await _reindex())
-    except UploadRejected as e:
-        await _refresh_subjects(f"Not deleted: {e}")
-
-
 @cl.on_message
 async def on_message(msg: cl.Message):
-    if msg.command == "Subjects":
-        return await _show_subjects()
     expert = cl.user_session.get("chat_profile") or AUTO
     files = [e for e in msg.elements if getattr(e, "path", None)]
     if files:

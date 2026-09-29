@@ -24,7 +24,7 @@ def tree(notes_dir: Path) -> list[dict]:
     if not notes_dir.is_dir():
         return []
     unis = []
-    for uni_dir in _visible_dirs(notes_dir):
+    for uni_dir in sorted(_visible_dirs(notes_dir), key=lambda d: d.name.lower() == "other"):  # "Other" last
         subjects = []
         for sub in _visible_dirs(uni_dir):
             if sub.name.lower() in DOC_TYPE_DIRS:

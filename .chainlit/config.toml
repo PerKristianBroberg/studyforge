@@ -20,7 +20,7 @@ persist_user_env = false
 mask_user_env = false
 
 # Authorized origins
-allow_origins = ["*"]
+allow_origins = ["http://127.0.0.1:8000", "http://localhost:8000"]
 
 [features]
 # Process and display HTML in messages. This can be a security risk (see https://stackoverflow.com/questions/19603097/why-is-it-dangerous-to-render-user-generated-html-or-javascript)
@@ -192,6 +192,13 @@ default_avatar_file_url = ""
 #     icon_url = "https://avatars.githubusercontent.com/u/128686189?s=200&v=4"
 #     url = "https://github.com/Chainlit/chainlit/issues"
 #     target = "_blank" (default)  # Optional: "_self", "_parent", "_top".
+
+[[UI.header_links]]
+    name = "Library"
+    display_name = "Library"
+    icon_url = "/public/folder.svg"
+    url = "/library"
+    target = "_self"
 
 [meta]
 generated_by = "2.12.0"
