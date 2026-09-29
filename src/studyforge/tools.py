@@ -1,8 +1,10 @@
+from dataclasses import asdict
+
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
-from studyforge import retrieval
+from studyforge import retrieval, tracing
 from studyforge.config import Settings
 from studyforge.retrieval import Hit, Scope
 
@@ -32,7 +34,10 @@ def make_tools(scope: Scope, s: Settings, quiz_llm: BaseChatModel) -> list[BaseT
     @tool
     def search_notes(query: str) -> str:
         """Search the student's notes in this expert's scope. Returns numbered passages with citations, or NOT_IN_NOTES."""
-        return format_hits(retrieval.search(query, scope, s))
+        with tracing.observe("retrieve-notes", "retriever", input={"query": query, "scope": asdict(scope)}) as obs:
+            hits = retrieval.search(query, scope, s)
+            obs.update(output=[h.cite() for h in hits], metadata={"scores": [round(h.score, 3) for h in hits]})
+        return format_hits(hits)
 
     @tool
     def make_quiz(topic: str, n: int = 5) -> str:
@@ -42,7 +47,8 @@ def make_tools(scope: Scope, s: Settings, quiz_llm: BaseChatModel) -> list[BaseT
             return NOT_IN_NOTES
         quiz = quiz_llm.with_structured_output(Quiz, method="json_schema").invoke(
             f"Write {n} multiple-choice questions (4 choices each) testing understanding of '{topic}', "
-            f"using ONLY these notes. Cite the passage each question comes from.\n\n{format_hits(hits)}"
+            f"using ONLY these notes. Cite the passage each question comes from.\n\n{format_hits(hits)}",
+            config={"run_name": "generate-quiz"},
         )
         return quiz.model_dump_json()
 

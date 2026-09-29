@@ -16,8 +16,9 @@ class StubQuizLLM:
         assert schema is Quiz and method == "json_schema"
         return self
 
-    def invoke(self, prompt):
+    def invoke(self, prompt, config=None):
         self.prompts.append(prompt)
+        self.config = config or {}
         return Quiz(questions=[QuizQuestion(question="What is a heap?", choices=["a", "b", "c", "d"],
                                             answer=0, source="UiO/INF1010/heaps.pdf p.3")])
 
@@ -51,3 +52,11 @@ def test_make_quiz_without_notes_does_not_call_llm(monkeypatch):
     _, make_quiz = make_tools(Scope(), Settings(), llm)
     assert make_quiz.invoke({"topic": "photosynthesis"}) == NOT_IN_NOTES
     assert llm.prompts == []
+
+
+def test_make_quiz_run_is_named_for_tracing(monkeypatch):
+    monkeypatch.setattr("studyforge.retrieval.search", lambda q, scope, s: [HIT])
+    llm = StubQuizLLM()
+    _, make_quiz = make_tools(Scope(uni="UiO", course="INF1010"), Settings(), llm)
+    make_quiz.invoke({"topic": "heaps", "n": 1})
+    assert llm.config.get("run_name") == "generate-quiz"

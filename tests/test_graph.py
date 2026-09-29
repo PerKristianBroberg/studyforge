@@ -82,7 +82,7 @@ def test_router_uses_native_json_schema():
             assert schema is Route and method == "json_schema"
             return self
 
-        def invoke(self, prompt):
+        def invoke(self, prompt, config=None):
             return Route(expert_id="UiO")
 
     from langchain_core.messages import HumanMessage
@@ -99,10 +99,30 @@ def test_router_menu_includes_personas():
         def with_structured_output(self, schema, method="function_calling"):
             return self
 
-        def invoke(self, prompt):
+        def invoke(self, prompt, config=None):
             StubLLM.prompt = prompt
             return Route(expert_id="UiO/INF1010")
 
     personas = {"UiO/INF1010": "You are an expert on algorithms: sorting, graphs and heaps."}
     make_router(StubLLM(), EXPERTS, personas)([HumanMessage("quicksort code?")])
     assert "sorting, graphs and heaps" in StubLLM.prompt  # course codes alone are opaque to the router
+
+
+def test_router_sees_recent_conversation_and_names_its_run():
+    from langchain_core.messages import AIMessage, HumanMessage
+    from studyforge.graph import Route, make_router
+
+    class StubLLM:
+        prompt, config = "", {}
+
+        def with_structured_output(self, schema, method="function_calling"):
+            return self
+
+        def invoke(self, prompt, config=None):
+            StubLLM.prompt, StubLLM.config = prompt, config or {}
+            return Route(expert_id="UiO/INF1010")
+
+    history = [HumanMessage("What is a heap in INF1010?"), AIMessage("A heap is a tree."), HumanMessage("Quiz me on it")]
+    make_router(StubLLM(), EXPERTS)(history)
+    assert "What is a heap in INF1010?" in StubLLM.prompt  # follow-ups like "it" need context
+    assert StubLLM.config.get("run_name") == "route-question"

@@ -38,10 +38,14 @@ def make_router(llm, experts: list[Expert], personas: dict[str, str] | None = No
     structured = llm.with_structured_output(Route, method="json_schema")  # Sonnet 5.5 rejects forced tool_choice
 
     def router(messages: list[BaseMessage]) -> str:
+        # follow-ups ("quiz me on it") only make sense with the recent turns
+        recent = "\n".join(f"{m.type}: {m.text[:300]}" for m in messages[-5:] if m.type in ("human", "ai") and m.text)
         return structured.invoke(
             "Pick the expert best suited to the student's latest message. Prefer the most specific "
-            f"course expert; use 'general' if unsure or if it spans courses.\nExperts:\n{menu}\n\n"
-            f"Message: {messages[-1].text}"
+            "course expert; for follow-ups, stay with the expert whose topic the conversation is about; "
+            f"use 'general' if unsure or if it spans courses.\nExperts:\n{menu}\n\n"
+            f"Recent conversation (latest last):\n{recent}",
+            config={"run_name": "route-question"},
         ).expert_id
 
     return router

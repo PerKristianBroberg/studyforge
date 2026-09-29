@@ -5,6 +5,7 @@ import uuid
 from langchain_anthropic import ChatAnthropic
 from langgraph.checkpoint.postgres import PostgresSaver
 
+from studyforge import tracing
 from studyforge.config import Settings
 from studyforge.experts import discover
 from studyforge.graph import build_graph, make_router
@@ -22,10 +23,19 @@ def build_app(s: Settings, checkpointer):
 
 def run_config(thread_id: str) -> dict:
     cfg = {"configurable": {"thread_id": thread_id}}
-    if os.environ.get("LANGFUSE_PUBLIC_KEY"):  # tracing is opt-in; traces stay in the local Langfuse
-        from langfuse.langchain import CallbackHandler
-        cfg["callbacks"] = [CallbackHandler()]
+    if cbs := tracing.callbacks():  # tracing is opt-in; traces stay in the local Langfuse
+        cfg["callbacks"] = cbs
     return cfg
+
+
+def ask(graph, question: str, requested: str, thread_id: str, interface: str = "cli") -> dict:
+    """One chat turn = one Langfuse trace (input: question, output: answer); turns group by session = thread."""
+    with tracing.observe("chat-turn", "agent", input=question,
+                         session_id=thread_id, tags=[f"interface:{interface}"]) as turn:
+        out = graph.invoke({"messages": [("user", question)], "requested": requested}, run_config(thread_id))
+        turn.update(output=out["messages"][-1].text,
+                    metadata={"expert_id": out["expert_id"], "requested": requested})
+    return out
 
 
 def main() -> None:
@@ -41,6 +51,9 @@ def main() -> None:
         checkpointer.setup()
         graph, experts = build_app(s, checkpointer)
         print(f"thread {thread} | experts: {', '.join(e.id for e in experts)} | empty line quits")
-        while q := input("> ").strip():
-            out = graph.invoke({"messages": [("user", q)], "requested": args.expert}, run_config(thread))
-            print(f"[{out['expert_id']}] {out['messages'][-1].text}\n")
+        try:
+            while q := input("> ").strip():
+                out = ask(graph, q, args.expert, thread)
+                print(f"[{out['expert_id']}] {out['messages'][-1].text}\n")
+        finally:
+            tracing.flush()  # short-lived CLI: don't lose the last turns' traces

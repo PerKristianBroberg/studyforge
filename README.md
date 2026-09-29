@@ -24,3 +24,16 @@ files directly under `notes/<uni>/` or in `notes/<uni>/admin/` belong to the who
 uv run pytest                 # unit + integration (needs Postgres)
 uv run pytest -m eval evals -s   # retrieval quality on samples/ (downloads models)
 ```
+
+## Agents
+
+```bash
+cp .env.example .env          # add ANTHROPIC_API_KEY
+uv run --env-file .env chat                      # auto-routes to the best expert
+uv run --env-file .env chat --expert UiO/INF1010 # talk to one expert
+```
+
+Tracing (optional, local only): `docker compose --env-file .env -f infra/langfuse/docker-compose.yml up -d`,
+then open http://127.0.0.1:3000. The `LANGFUSE_INIT_*` values in `.env` create the org, project, API keys and login
+on first start. Each chat turn is one `chat-turn` trace (session = conversation), with `route-question`,
+`retrieve-notes` (retriever) and `generate-quiz` steps.
