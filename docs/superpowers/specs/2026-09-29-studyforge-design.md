@@ -1,4 +1,4 @@
-# UniHelper — Design Spec
+# studyforge — Design Spec
 
 **Date:** 2026-09-29
 **Status:** Approved in brainstorming, pending written-spec review
