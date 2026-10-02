@@ -3,6 +3,10 @@
 A detailed walkthrough of what happens inside studyforge, from a file landing in `notes/` to a cited answer
 in the chat and a study plan in the calendar. File references point at `src/studyforge/` unless stated otherwise.
 
+Tunable values (how many passages, thresholds, chunk sizes, limits, model versions) are deliberately **not**
+repeated here, so this guide doesn't go stale: they live in `config.Settings` (section 12) or as named constants
+in the module this guide points to.
+
 ![architecture](architecture.png)
 
 ---
@@ -23,8 +27,8 @@ Everything runs on your PC except the language model calls to Claude (Anthropic 
 
 | Runs locally | Runs at Anthropic |
 |---|---|
-| Your files, parsing (Docling), OCR (EasyOCR) | Answer generation (Claude Sonnet 5.5) |
-| Embeddings (bge-m3) and reranking (bge-reranker-v2-m3) | Routing, personas, deadline finding, quiz (Claude Haiku 4.5 / Sonnet) |
+| Your files, parsing (Docling), OCR (EasyOCR) | Answer generation (Claude Sonnet, `expert_model`) |
+| Embeddings (bge-m3) and reranking (bge-reranker-v2-m3) | Routing, personas, deadline finding (Claude Haiku, `router_model`); quiz (Sonnet) |
 | Postgres + pgvector (vectors, chat history, calendar) | |
 | Langfuse tracing (optional, self-hosted) | |
 
@@ -40,7 +44,7 @@ flowchart TB
         R["route node<br/>(Haiku router)"] --> E["expert agents<br/>(Sonnet + tools)"]
     end
     subgraph Retrieval["Retrieval (LlamaIndex)"]
-        H["hybrid search<br/>dense ∪ keyword"] --> RR["reranker<br/>top 6"]
+        H["hybrid search<br/>dense ∪ keyword"] --> RR["reranker<br/>best top_n"]
     end
     subgraph Storage["Storage (Postgres 17 + pgvector)"]
         DB[("chunks · manifest · personas<br/>checkpoints · calendar")]
@@ -165,21 +169,21 @@ Docling converters are cached (`lru_cache`), so models load once per process.
 
 | File type | Splitters | Why |
 |---|---|---|
-| Code | `CodeSplitter(language, max_chars=1500)` (tree-sitter) | splits on functions/classes instead of mid-statement |
-| Everything else | `MarkdownNodeParser` → `SentenceSplitter(chunk_size=512, chunk_overlap=64)` | respects headings first, then caps chunk size |
+| Code | `CodeSplitter(language, max_chars=…)` (tree-sitter) | splits on functions/classes instead of mid-statement |
+| Everything else | `MarkdownNodeParser` → `SentenceSplitter(chunk_size=…, chunk_overlap=…)` | respects headings first, then caps chunk size |
 
-Chunks ("nodes") inherit their document's metadata, including `page`.
+Chunks ("nodes") inherit their document's metadata, including `page`. Sizes are set in `ingest._splitters()`.
 
 ### 4.4 Embedding
 
-Each chunk is embedded with **BAAI/bge-m3** (1024 dimensions, multilingual, runs on CPU via
+Each chunk is embedded with **BAAI/bge-m3** (`embed_model`; multilingual, runs on CPU via
 HuggingFace/PyTorch). It handles Norwegian and English in the same vector space, so a Norwegian question can find
 an English slide and vice versa. The model is downloaded on first use and cached (`store.embed_model`, `lru_cache`).
 
 ### 4.5 Where it's stored
 
 `store.vector_store()` is a LlamaIndex `PGVectorStore` with `hybrid_search=True`. The real table is
-**`data_chunks`** (LlamaIndex adds the `data_` prefix). Each row holds the chunk text, its 1024-d vector, a
+**`data_chunks`** (LlamaIndex adds the `data_` prefix). Each row holds the chunk text, its vector, a
 Postgres full-text `tsvector` (config `simple` — no language-specific stemming, so it works for both Norwegian and
 English), and the metadata as JSONB.
 
@@ -192,24 +196,25 @@ deadline finder.
 
 ```mermaid
 flowchart LR
-    Q[question] --> D["dense search<br/>bge-m3 vector, top 30"]
-    Q --> K["keyword search<br/>Postgres full-text, top 30"]
-    D & K --> U["union, deduped<br/>≤ 60 candidates"]
+    Q[question] --> D["dense search<br/>bge-m3 vector, top_k"]
+    Q --> K["keyword search<br/>Postgres full-text, top_k"]
+    D & K --> U["union, deduped<br/>≤ 2 × top_k candidates"]
     U --> RR["cross-encoder rerank<br/>bge-reranker-v2-m3"]
-    RR --> T["top 6"]
-    T --> F{"score ≥ 0.05?"}
+    RR --> T["best top_n"]
+    T --> F{"score ≥ rerank_min_score?"}
     F -- yes --> H["Hits with citations"]
     F -- none left --> N["NOT_IN_NOTES"]
 ```
 
 1. **Scope filter** — `Scope(uni, course, doc_types)` becomes LlamaIndex `MetadataFilters`, applied *inside*
    the database query. A course expert physically cannot get passages from another course.
-2. **Hybrid search** — the dense (semantic) and sparse (keyword) retrievers each return their top 30
-   (`Settings.top_k`). Dense search catches paraphrases ("fastest sorting"); keyword search catches exact
+2. **Hybrid search** — the dense (semantic) and sparse (keyword) retrievers each return their best
+   `Settings.top_k` candidates. Dense search catches paraphrases ("fastest sorting"); keyword search catches exact
    terms, course codes and formulas that embeddings blur.
 3. **Rerank** — a local cross-encoder, **bge-reranker-v2-m3**, reads each (question, passage) pair together and
-   scores relevance far more accurately than vector similarity. Keeps the top 6 (`Settings.top_n`).
-4. **Score floor** — passages scoring below `rerank_min_score` (0.05) are dropped. If nothing survives, the
+   scores relevance far more accurately than vector similarity. Keeps the best `Settings.top_n`. This is the slowest step on a CPU: its cost grows with the number of
+   candidates, which is why `top_k` is kept small.
+4. **Score floor** — passages scoring below `Settings.rerank_min_score` are dropped. If nothing survives, the
    answer is "Not in your notes." This threshold is the calibration knob for refusals, tuned against the refusal
    cases in `evals/golden.jsonl`.
 
@@ -237,12 +242,12 @@ Add a folder, and after the next ingest a new expert appears (the web UI rebuild
 Course codes like `ALG101` mean nothing to a language model, so each non-general expert gets a short
 **persona** (`personas.py`), e.g. *"You are an expert on introductory algorithms: sorting, graph search…"*.
 
-- **Material**: up to 50 file names in scope + ~4000 characters of excerpts from a retrieval for
-  "main topics of <expert>". Admin documents are excluded (letters and forms shouldn't be sent to the API
+- **Material**: file names in scope + a capped amount of excerpts from a retrieval for
+  "main topics of <expert>" (limits in `personas.default_material`). Admin documents are excluded (letters and forms shouldn't be sent to the API
   without a user question).
-- **Generated by** Claude Haiku 4.5, in 3–4 sentences.
+- **Generated by** the router model (Claude Haiku), as a short paragraph.
 - **Cached** in the `personas` table under a key = sha256 of all file hashes in scope. The persona is only
-  regenerated when the files in that scope change. At startup, missing personas are generated 4 at a time in
+  regenerated when the files in that scope change. At startup, missing personas are generated in
   parallel.
 
 The persona does two jobs: it becomes the start of the expert's **system prompt**, and it is shown to the
@@ -266,13 +271,13 @@ flowchart LR
 **`route` node**:
 - If the user picked a specific expert (chat profile in the UI, `--expert` in the CLI), go straight there.
 - Otherwise call the **router**: Claude Haiku with structured output (`json_schema` → `Route(expert_id)`). It
-  sees the list of experts with their personas and the last 5 messages (so follow-ups like "quiz me on that" stay
+  sees the list of experts with their personas and the last few messages (so follow-ups like "quiz me on that" stay
   with the same expert), and is told to prefer the most specific course expert and fall back to `general` when
   unsure or when the question spans courses.
 - Any router failure (API error, bad JSON) or an unknown id → `general`. A routing hiccup never fails the turn.
 
 **Expert nodes**: one per expert, each a LangChain `create_agent` (a tool-calling ReAct loop) on
-**Claude Sonnet 5.5** with:
+**Claude Sonnet** (`expert_model`) with:
 - system prompt = persona + `RULES`:
   - always call `search_notes` before answering course questions;
   - answer only from the returned passages and cite them inline like `[UiB/INF100/x.pdf p.3]`;
@@ -283,11 +288,11 @@ flowchart LR
 - tools bound to *that expert's scope* (6.4).
 
 **Context window control** — `graph.recent()`: the checkpoint keeps the full conversation, but the expert only
-sees the last 6 question/answer pairs *without their tool traffic*, plus the current turn. Otherwise every old
+sees only the most recent question/answer pairs (`graph.recent()`) *without their tool traffic*, plus the current turn. Otherwise every old
 search result would be re-sent on every turn until the context overflowed.
 
 **Memory** — the graph is compiled with a LangGraph **Postgres checkpointer** (`PostgresSaver`). Each
-conversation is a `thread_id` (the Chainlit thread id in the web UI, an 8-char id or `--thread` in the CLI), so
+conversation is a `thread_id` (the Chainlit thread id in the web UI, a random id or `--thread` in the CLI), so
 conversations survive restarts and can be resumed.
 
 ### 6.4 Tools (`tools.py`)
@@ -298,7 +303,7 @@ chooses the query but never the scope — an expert has no way to search outside
 | Tool | What it does | Returns |
 |---|---|---|
 | `search_notes(query)` | `retrieval.search(query, scope)` | numbered passages `"[1] <citation>\n<text>"`, or `NOT_IN_NOTES` |
-| `make_quiz(topic, n=5)` | retrieves passages on the topic, then asks the LLM for a structured `Quiz` (4 choices, correct index, source citation per question) | quiz JSON, or `NOT_IN_NOTES` |
+| `make_quiz(topic, n)` | retrieves passages on the topic, then asks the LLM for a structured `Quiz` (multiple choice, correct index, source citation per question) | quiz JSON, or `NOT_IN_NOTES` |
 
 ---
 
@@ -314,7 +319,7 @@ What happens when you type *"What is the worst case of quicksort?"* in the web U
    `{"messages": [question], "requested": "auto"}` on this conversation's thread.
 4. **`route`** → Haiku picks `uni-a/ALG101` based on the personas.
 5. **Expert agent** (Sonnet) reads its persona + rules, calls `search_notes("quicksort worst case")`.
-6. **Retrieval** → hybrid search inside `uni-a/ALG101` → rerank → 6 passages above the score floor.
+6. **Retrieval** → hybrid search inside `uni-a/ALG101` → rerank → the best passages above the score floor.
 7. The expert writes the answer from those passages, citing `[uni-a/ALG101/sorting.md]`.
 8. The checkpointer saves the new messages to Postgres.
 9. **Citations** — `sources.cited()` extracts every bracketed `path.ext` / `path.ext p.N` label from the answer.
@@ -375,20 +380,27 @@ Three tables (prefix `cal`, `calendar_store.py`):
 |---|---|
 | `cal_events` | exams, arbeidskrav, deadlines: uni, course, kind, title, due date/time, **status** (`suggested` / `confirmed` / `dismissed`), source citation, `uncertain` flag |
 | `cal_blocks` | planned study blocks: day, start, minutes, course, kind (`study` / `assignment` / `exam-prep`), topic, linked event, `done` |
-| `cal_prefs` | availability: hours per weekday, block length (min), start hour. Default: Mon–Thu 3 h, Fri 2 h, Sat 3 h, Sun 0; 90-min blocks from 09:00 |
+| `cal_prefs` | availability: hours per weekday, block length (min), start hour (defaults: `calendar_store.DEFAULT_PREFS`) |
 
 ### 9.1 Finding deadlines in your documents (`deadlines.py`)
 
-`POST /api/calendar/find` runs this for **every subject**:
+Dates are found **when a file is indexed**, once per file version, using as little AI as possible
+(`deadlines.scan_new`, run after every indexing pass and by the calendar's "Check for new deadlines" button):
 
-1. Six searches in the subject's scope, in Norwegian and English (*"arbeidskrav frist innlevering"*,
-   *"eksamen dato skriftlig eksamen"*, *"assignment deadline due date submission"*, …). Hits are deduplicated.
-2. If nothing was found, stop — no Claude call.
-3. Up to 12 passages go to **Claude Haiku** with structured output (`FoundList` of `kind, title, date, time,
-   source, uncertain`). The prompt includes today's date and asks it to resolve week numbers
-   (*"fredag i uke 41"*) to real dates and to mark inferred dates as `uncertain`.
-4. Unparseable or past dates are dropped. The rest become events with status **`suggested`**.
-5. Events already known (same uni, course, kind, date, title — *including dismissed ones*) are skipped, so a
+1. **Only new or changed files.** The `cal_scanned` table remembers which file version (sha) has been read;
+   unchanged files are never read again.
+2. **The file's own chunks** are read straight from the vector table, so there's no search and no reranker.
+3. **A free pre-filter, no AI.** Only chunks that contain both a deadline word (`deadlines.KEYWORD`: *frist,
+   arbeidskrav, eksamen, oblig, deadline, due, exam, assignment…*) and something date-like (`deadlines.DATE`:
+   *16.10.2026, 8. desember, October 9, 2026-10-16, uke 41, week 42…*) go on. Norwegian and English both count.
+   A file with no such chunk costs **no Claude call**.
+4. The matching chunks (capped by `deadlines.MAX_PASSAGES`) go to **Claude Haiku** with structured output (`FoundList` of
+   `kind, title, date, time, source, uncertain`). The prompt includes today's date and asks it to resolve week
+   numbers (*"fredag i uke 41"*) to real dates and to mark inferred dates as `uncertain`.
+5. The file is marked as read only after this succeeds, so a failed Claude call is retried next time.
+
+6. Unparseable or past dates are dropped. The rest become events with status **`suggested`**.
+7. Events already known (same uni, course, kind, date, title — *including dismissed ones*) are skipped, so a
    dismissed suggestion never comes back.
 
 Nothing lands in your plan until you **confirm** it. You can also add events by hand (status `confirmed`,
@@ -401,21 +413,16 @@ source "added by you").
 - **Kept**: past blocks and blocks marked done. Their time slots are not reused.
 - **Replaced**: every future, not-done block.
 - For each day, the number of slots = `hours[weekday] × 60 // block_minutes`, starting at `start_hour`.
-- An event is **eligible** for a slot when it's still ahead and within its **work window**:
-
-  | Kind | Window (days before due) | Weight |
-  |---|---|---|
-  | exam | 28 | 2.0 |
-  | arbeidskrav | 14 | 1.5 |
-  | deadline | 10 | 1.0 |
-  | other | 7 | 0.5 |
+- An event is **eligible** for a slot when it's still ahead and within its **work window**: how many days before
+  the due date work starts. Each kind has its own window and weight (`planner.WINDOW`, `planner.WEIGHT`): exams get
+  the longest window and highest weight, then arbeidskrav, then other deadlines.
 
 - Each slot goes to the eligible event with the highest score:
-  `weight × closeness / (1 + blocks_already_given)`, where `closeness` rises from ~0 at the start of the window to
+  `weight × closeness / (1 + blocks_already_given)`, where `closeness` rises from near 0 at the start of the window to
   1 at the due date. Nearer and heavier items win, but every block given to an item makes room for the others,
   so parallel deadlines share time instead of one item taking everything.
 - **Block labels**:
-  - exam in the last 3 days → `exam-prep`, "Past exam papers";
+  - exam in its final days (`planner.EXAM_PREP_DAYS`) → `exam-prep`, "Past exam papers";
   - arbeidskrav/deadline → `assignment`, titled after the event;
   - otherwise `study`, rotating through the subject's note file names as topics
     (`linked-lists.md` → "Linked lists").
@@ -450,11 +457,11 @@ create the org, project, keys and login on first start.
 
 | Call | Model | Sends |
 |---|---|---|
-| Answering | Sonnet 5.5 | your question, recent conversation, the ≤ 6 retrieved passages per search |
-| Routing | Haiku 4.5 | expert list + personas, last 5 messages (≤ 300 chars each) |
-| Personas | Haiku 4.5 | ≤ 50 file names + ~4000 chars of excerpts per scope (admin docs excluded), once per change |
-| Quiz | Sonnet 5.5 | ≤ 6 passages on the topic |
-| Deadline finder | Haiku 4.5 | ≤ 12 passages per subject, when you click "find" |
+| Answering | Sonnet | your question, recent conversation, the retrieved passages (at most `top_n`) per search |
+| Routing | Haiku | expert list + personas, the last few messages (truncated) |
+| Personas | Haiku | file names + capped excerpts per scope (admin docs excluded), once per change |
+| Quiz | Sonnet | the retrieved passages on the topic |
+| Deadline finder | Haiku | only chunks of newly indexed files that contain a deadline word and a date |
 
 Files, embeddings, vectors, models, chat history and traces stay local.
 
@@ -462,7 +469,8 @@ Files, embeddings, vectors, models, chat history and traces stay local.
 - **Scope-bound tools** — an expert's search scope is fixed in a closure, not chosen by the model.
 - **Path safety** (`uploads.py`, `library.py`) — every path segment must match a strict pattern (letters incl.
   æøå, digits, space, `.()-–`; no leading `.` or `~$`), and the resolved target must stay inside `notes/`.
-- **Upload limits** — 50 MB per file; zips max 500 files / 500 MB unpacked, checked *before* extracting (zip
+- **Upload limits** — per-file size, zip file count and unpacked size (`uploads.MAX_BYTES`, `ZIP_MAX_FILES`,
+  `ZIP_MAX_TOTAL`), checked *before* extracting (zip
   bombs); each zip entry is path-checked (zip slip); OS junk (`__MACOSX`, `.DS_Store`, `Thumbs.db`) is ignored.
 - **Origin check** — every mutating library/calendar endpoint requires an `Origin` of `127.0.0.1`/`localhost`.
   Chainlit's CORS allows all origins, so without this any website open in your browser could POST/DELETE to the
@@ -474,20 +482,20 @@ Files, embeddings, vectors, models, chat history and traces stay local.
 
 ## 12. Configuration
 
-All settings live in `config.Settings` and can be overridden with environment variables named
+All settings live in `config.Settings`, the source of truth for current defaults, and can be overridden with environment variables named
 `STUDYFORGE_<FIELD>`:
 
-| Setting | Default | Env override |
+| Setting | What it controls | Env override |
 |---|---|---|
-| `notes_dir` | `notes` | `STUDYFORGE_NOTES_DIR` |
-| `db_host` / `db_port` / `db_name` / `db_user` / `db_password` | `localhost` / `5433` / `studyforge` ×3 | `STUDYFORGE_DB_*` |
-| `embed_model` / `embed_dim` | `BAAI/bge-m3` / `1024` | `STUDYFORGE_EMBED_MODEL` |
-| `rerank_model` | `BAAI/bge-reranker-v2-m3` | `STUDYFORGE_RERANK_MODEL` |
-| `top_k` (per retriever) / `top_n` (after rerank) | `30` / `6` | `STUDYFORGE_TOP_K`, `STUDYFORGE_TOP_N` |
-| `rerank_min_score` | `0.05` | `STUDYFORGE_RERANK_MIN_SCORE` |
-| `expert_model` | `claude-sonnet-5-5` | `STUDYFORGE_EXPERT_MODEL` |
-| `router_model` | `claude-haiku-4-5` | `STUDYFORGE_ROUTER_MODEL` |
-| `chunks_table` / `manifest_table` / `calendar_prefix` | `chunks` / `ingest_manifest` / `cal` | (used by evals to isolate data) |
+| `notes_dir` | where your course files live | `STUDYFORGE_NOTES_DIR` |
+| `db_host` / `db_port` / `db_name` / `db_user` / `db_password` | the Postgres connection (matches `docker-compose.yml`) | `STUDYFORGE_DB_*` |
+| `embed_model` / `embed_dim` | local embedding model and its vector size | `STUDYFORGE_EMBED_MODEL` |
+| `rerank_model` | local cross-encoder reranker | `STUDYFORGE_RERANK_MODEL` |
+| `top_k` / `top_n` | candidates per retriever / passages kept after reranking; a higher `top_k` means slower answers | `STUDYFORGE_TOP_K`, `STUDYFORGE_TOP_N` |
+| `rerank_min_score` | the "not in your notes" cut-off | `STUDYFORGE_RERANK_MIN_SCORE` |
+| `expert_model` | Claude model that writes answers | `STUDYFORGE_EXPERT_MODEL` |
+| `router_model` | Claude model for routing, personas, deadlines, eval judge | `STUDYFORGE_ROUTER_MODEL` |
+| `chunks_table` / `manifest_table` / `calendar_prefix` | table names (evals use their own to isolate data) | — |
 
 `.env` holds `ANTHROPIC_API_KEY` and the optional Langfuse keys (see `.env.example`).
 
@@ -501,10 +509,10 @@ All settings live in `config.Settings` and can be overridden with environment va
 
 | Suite | Command | What it checks |
 |---|---|---|
-| Unit + integration | `uv run pytest` | ~100 tests in `tests/`; needs the Postgres container. LLMs and models are faked where possible |
-| Retrieval eval | `uv run pytest -m eval evals -s` | ingests `samples/`, runs the 15 cases in `evals/golden.jsonl`: **hit@6 ≥ 0.9, MRR ≥ 0.7, every off-topic question refused** |
+| Unit + integration | `uv run pytest` | the tests in `tests/`; needs the Postgres container. LLMs and models are faked where possible |
+| Retrieval eval | `uv run pytest -m eval evals -s` | ingests `samples/`, runs the cases in `evals/golden.jsonl`: **hit rate and MRR above the test's thresholds, every off-topic question refused** |
 | OCR eval | (same marker) | renders a Norwegian sentence into an image-only PDF and checks EasyOCR reads it |
-| Answer eval | `uv run pytest -m llm_eval evals -s` | runs the full graph on the golden set; **Ragas faithfulness ≥ 0.8** (Haiku as judge) and every refusal case answered "Not in your notes." |
+| Answer eval | `uv run pytest -m llm_eval evals -s` | runs the full graph on the golden set; **Ragas faithfulness above the test's threshold** (Haiku as judge) and every refusal case answered "Not in your notes." |
 
 Evals use separate tables (`eval_chunks`, `eval_manifest`), so they never touch your real index.
 `.github/workflows/ci.yml` runs all three on every push with a pgvector service container, caching the

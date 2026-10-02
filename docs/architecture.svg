@@ -68,8 +68,8 @@
     <use href="#i-langgraph" x="60" y="326" width="22" height="22"/><text x="90" y="344" class="t">Supervisor router</text>
     <text x="60" y="368" class="l">Reads recent turns + expert</text>
     <text x="60" y="386" class="l">personas, picks the expert</text>
-    <rect x="60" y="406" width="118" height="22" rx="11" fill="#F3ECE3"/>
-    <text x="72" y="421" class="tag" fill="#8A5A2B">Claude Haiku 4.5</text>
+    <rect x="60" y="406" width="96" height="22" rx="11" fill="#F3ECE3"/>
+    <text x="72" y="421" class="tag" fill="#8A5A2B">Claude Haiku</text>
 
     <line x1="292" y1="380" x2="316" y2="380" class="flow"/>
 
@@ -77,10 +77,10 @@
     <use href="#i-claude" x="340" y="326" width="22" height="22"/><text x="370" y="344" class="t">Expert agents</text>
     <text x="340" y="368" class="l">One per course · per university · general</text>
     <text x="340" y="386" class="l">Scope-bound tools · cite or say "not in your notes"</text>
-    <rect x="340" y="406" width="126" height="22" rx="11" fill="#F3ECE3"/>
-    <text x="352" y="421" class="tag" fill="#8A5A2B">Claude Sonnet 5.5</text>
-    <rect x="474" y="406" width="150" height="22" rx="11" fill="#EAF1EC"/>
-    <text x="486" y="421" class="tag" fill="#2F5241">Postgres checkpoints</text>
+    <rect x="340" y="406" width="104" height="22" rx="11" fill="#F3ECE3"/>
+    <text x="352" y="421" class="tag" fill="#8A5A2B">Claude Sonnet</text>
+    <rect x="452" y="406" width="150" height="22" rx="11" fill="#EAF1EC"/>
+    <text x="464" y="421" class="tag" fill="#2F5241">Postgres checkpoints</text>
 
     <rect x="700" y="314" width="220" height="132" rx="12" class="card"/>
     <use href="#i-langchain" x="720" y="326" width="22" height="22"/><text x="750" y="344" class="t">Tools</text>
@@ -92,8 +92,8 @@
     <use href="#i-claude" x="960" y="326" width="22" height="22"/><text x="990" y="344" class="t">Planning</text>
     <text x="960" y="368" class="l">Deadline finder (json_schema)</text>
     <text x="960" y="386" class="l">Deterministic study planner</text>
-    <rect x="960" y="406" width="118" height="22" rx="11" fill="#F3ECE3"/>
-    <text x="972" y="421" class="tag" fill="#8A5A2B">Claude Haiku 4.5</text>
+    <rect x="960" y="406" width="96" height="22" rx="11" fill="#F3ECE3"/>
+    <text x="972" y="421" class="tag" fill="#8A5A2B">Claude Haiku</text>
   </g>
 
   <!-- ===== Row 3: retrieval ===== -->
@@ -102,14 +102,14 @@
   <g>
     <rect x="40" y="522" width="360" height="86" rx="12" class="card"/>
     <use href="#i-llamaindex" x="60" y="534" width="22" height="22"/><text x="90" y="552" class="t">Hybrid search</text>
-    <text x="60" y="576" class="l">Dense top-30 ∪ keyword top-30 · scope filter</text>
+    <text x="60" y="576" class="l">Dense ∪ keyword candidates · scope filter</text>
     <line x1="402" y1="565" x2="426" y2="565" class="flow"/>
     <rect x="430" y="522" width="360" height="86" rx="12" class="card"/>
     <use href="#i-huggingface" x="450" y="534" width="22" height="22"/><text x="480" y="552" class="t">Reranker</text>
     <text x="450" y="576" class="l">bge-reranker-v2-m3 · local cross-encoder</text>
     <line x1="792" y1="565" x2="816" y2="565" class="flow"/>
     <rect x="820" y="522" width="360" height="86" rx="12" class="card"/>
-    <use href="#i-llamaindex" x="840" y="534" width="22" height="22"/><text x="870" y="552" class="t">Top-6 cited passages</text>
+    <use href="#i-llamaindex" x="840" y="534" width="22" height="22"/><text x="870" y="552" class="t">Top cited passages</text>
     <text x="840" y="576" class="l">Below score floor → "not in your notes"</text>
   </g>
 
@@ -120,7 +120,7 @@
   <g>
     <rect x="46" y="698" width="268" height="66" rx="10" class="card"/>
     <use href="#i-postgresql" x="62" y="706" width="22" height="22"/><text x="92" y="724" class="t">Vectors + full-text</text>
-    <text x="62" y="746" class="l">1024-d · uni/course/type/page</text>
+    <text x="62" y="746" class="l">embeddings · uni/course/type/page</text>
     <rect x="330" y="698" width="268" height="66" rx="10" class="card"/>
     <use href="#i-postgresql" x="346" y="706" width="22" height="22"/><text x="376" y="724" class="t">Ingest manifest</text>
     <text x="346" y="746" class="l">sha256 per file · skip unchanged</text>
@@ -169,10 +169,10 @@
 
     <rect x="1222" y="306" width="338" height="170" rx="12" class="card"/>
     <use href="#i-pytest" x="1242" y="318" width="22" height="22"/><text x="1272" y="336" class="t">Evals &amp; CI</text>
-    <text x="1242" y="360" class="l">Retrieval: hit@6 1.00 · MRR 1.00</text>
-    <text x="1242" y="379" class="l">Answers: Ragas faithfulness 0.94</text>
-    <text x="1242" y="398" class="l">Off-topic refusals 3/3</text>
-    <text x="1242" y="417" class="l">106 tests · pytest + GitHub Actions</text>
+    <text x="1242" y="360" class="l">Retrieval: hit rate + MRR on a golden set</text>
+    <text x="1242" y="379" class="l">Answers: Ragas faithfulness</text>
+    <text x="1242" y="398" class="l">Off-topic questions must be refused</text>
+    <text x="1242" y="417" class="l">pytest + GitHub Actions on every push</text>
     <text x="1242" y="436" class="l">Eval findings drove fixes (routing,</text>
     <text x="1242" y="455" class="l">grounding) — not threshold tuning</text>
 
@@ -181,7 +181,7 @@
     <rect x="1242" y="540" width="14" height="14" rx="3" fill="#EAF1EC" stroke="#9FB8A9"/>
     <text x="1264" y="552" class="l">On this PC: files, vectors, models, traces</text>
     <rect x="1242" y="564" width="14" height="14" rx="3" fill="#F3ECE3" stroke="#D8C2A8"/>
-    <text x="1264" y="576" class="l">Anthropic API: question + ≤6 passages</text>
+    <text x="1264" y="576" class="l">Anthropic API: question + top passages</text>
     <text x="1242" y="604" class="l">Scope-bound tools: an expert can't</text>
     <text x="1242" y="623" class="l">search outside its course</text>
     <text x="1242" y="642" class="l">Upload guards: zip-slip · size · origin</text>
@@ -207,5 +207,5 @@
   </g>
 
   <text x="40" y="986" class="l">github.com/PerKristianBroberg/studyforge</text>
-  <text x="1560" y="986" class="l" text-anchor="end">Local models: bge-m3 · bge-reranker-v2-m3 · EasyOCR — Hosted: Claude Sonnet 5.5 · Haiku 4.5</text>
+  <text x="1560" y="986" class="l" text-anchor="end">Local models: bge-m3 · bge-reranker-v2-m3 · EasyOCR — Hosted: Claude Sonnet · Haiku</text>
 </svg>
