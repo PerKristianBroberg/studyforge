@@ -17,7 +17,8 @@ class Settings:
     embed_model: str = "BAAI/bge-m3"
     embed_dim: int = 1024
     rerank_model: str = "BAAI/bge-reranker-v2-m3"
-    top_k: int = 30
+    # ponytail: candidates per retriever; reranking ~2x top_k passages on CPU dominates answer time (30 took ~1 min)
+    top_k: int = 10
     top_n: int = 6
     # ponytail: calibration knob — below this rerank score a passage counts as "not in your notes".
     # Tune against the refusal cases in evals/golden.jsonl.
