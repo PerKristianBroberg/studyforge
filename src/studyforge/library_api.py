@@ -5,6 +5,7 @@ browser could POST/DELETE to 127.0.0.1 and wipe the notes (Chainlit's CORS allow
 import shutil
 import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
@@ -16,6 +17,7 @@ from pydantic import BaseModel
 from studyforge import ingest
 from studyforge.config import Settings
 from studyforge.library import add_subject, delete_file, delete_subject, tree
+from studyforge.store import Manifest
 from studyforge.uploads import UploadRejected, save_upload, save_zip
 
 PAGE = Path("public/library.html")
@@ -40,9 +42,12 @@ class Indexer:
         self.s, self.on_change, self.background = s, on_change, background
         self.lock, self.pending = threading.Lock(), False
         self.state = {"running": False, "done": 0, "total": 0, "current": "", "report": "", "error": ""}
+        self.started = 0.0
+        self.failed: dict[str, str] = {}  # path -> reason, from the last finished pass
 
     def status(self) -> dict:
-        return dict(self.state)
+        # elapsed counts from the start of the current pass; no time-left estimate, since file times vary 10x
+        return {**self.state, "elapsed": round(time.monotonic() - self.started) if self.state["running"] else 0}
 
     def request(self) -> None:
         with self.lock:
@@ -50,6 +55,7 @@ class Indexer:
                 self.pending = True
                 return
             self.state.update(running=True, done=0, total=0, current="", error="")
+            self.started = time.monotonic()
         if self.background:
             threading.Thread(target=self._work, daemon=True).start()
         else:
@@ -61,7 +67,9 @@ class Indexer:
     def _work(self) -> None:
         while True:
             try:
-                self.state["report"] = str(ingest.run(self.s.notes_dir, self.s, progress=self._progress))
+                report = ingest.run(self.s.notes_dir, self.s, progress=self._progress)
+                self.state["report"] = str(report)
+                self.failed = dict(getattr(report, "failed", []))
                 self.on_change()
             except Exception as e:  # surfaced on the page; files stay on disk for the next run
                 self.state["error"] = f"{type(e).__name__}: {e}"
@@ -70,12 +78,28 @@ class Indexer:
                     self.state["running"] = False
                     return
                 self.pending = False
+                self.started = time.monotonic()
 
 
 def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: None,
-             background: bool = True) -> None:
+             background: bool = True, indexed: Callable[[], set[str]] | None = None) -> Indexer:
     router = APIRouter()
     indexer = Indexer(s, on_change, background)
+    indexed = indexed or (lambda: set(Manifest(s).all()))
+
+    def listing() -> list[dict]:
+        """tree() plus each file's index status: indexing | failed | indexed | waiting."""
+        unis, done, st = tree(s.notes_dir), indexed(), indexer.status()
+        for u in unis:
+            for f in [*u["files"], *(f for sub in u["subjects"] for f in sub["files"])]:
+                # ponytail: "indexed" = in the manifest; a file edited on disk since then still shows indexed
+                if st["running"] and f["path"] == st["current"]:
+                    f["status"] = "indexing"
+                elif f["path"] in indexer.failed:
+                    f.update(status="failed", error=indexer.failed[f["path"]])
+                else:
+                    f["status"] = "indexed" if f["path"] in done else "waiting"
+        return unis
 
     def changed() -> str:
         indexer.request()
@@ -90,7 +114,7 @@ def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: 
 
     @router.get("/api/library")
     def get_tree():
-        return {"tree": tree(s.notes_dir)}
+        return {"tree": listing()}
 
     @router.post("/api/library/subjects")
     def create(body: NewSubject, request: Request):
@@ -99,7 +123,7 @@ def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: 
             add_subject(s.notes_dir, body.uni, body.course)
         except UploadRejected as e:
             raise rejected(e)
-        return {"tree": tree(s.notes_dir)}
+        return {"tree": listing()}
 
     @router.post("/api/library/upload")
     def upload(request: Request, uni: str = Form(...), course: str = Form(...), doc_type: str = Form("notes"),
@@ -123,7 +147,7 @@ def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: 
                     bad.append(f"{f.filename}: {e}")
         report = changed() if saved else ""
         return {"saved": saved, "rejected": bad, "report": report, "indexing": indexer.status(),
-                "tree": tree(s.notes_dir)}
+                "tree": listing()}
 
     @router.get("/api/library/indexing")
     def indexing():
@@ -136,7 +160,7 @@ def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: 
             delete_file(s.notes_dir, path)
         except UploadRejected as e:
             raise rejected(e)
-        return {"report": changed(), "tree": tree(s.notes_dir)}
+        return {"report": changed(), "tree": listing()}
 
     @router.delete("/api/library/subject")
     def remove_subject(uni: str, course: str, request: Request):
@@ -145,8 +169,9 @@ def register(app: FastAPI, s: Settings, on_change: Callable[[], None] = lambda: 
             delete_subject(s.notes_dir, uni, course)
         except UploadRejected as e:
             raise rejected(e)
-        return {"report": changed(), "tree": tree(s.notes_dir)}
+        return {"report": changed(), "tree": listing()}
 
     # Chainlit registers a catch-all GET for its SPA, so our routes must come first
     for route in reversed(router.routes):
         app.router.routes.insert(0, route)
+    return indexer

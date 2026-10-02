@@ -44,7 +44,7 @@ def _graph():
 # the /library page (public/library.html + JSON API) lives on Chainlit's own FastAPI server
 from chainlit.server import app as _server  # noqa: E402
 
-library_api.register(_server, S, on_change=lambda: _cached_graph.cache_clear())
+_indexer = library_api.register(_server, S, on_change=lambda: _cached_graph.cache_clear())
 calendar_api.register(_server, S)
 
 
@@ -52,6 +52,7 @@ calendar_api.register(_server, S)
 async def warm_up():
     # load models + personas in the background so the first message doesn't wait for them
     threading.Thread(target=_graph, daemon=True).start()
+    _indexer.request()  # files added or interrupted while the app was down; unchanged files are skipped cheaply
 
 
 @cl.set_chat_profiles

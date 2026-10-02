@@ -15,7 +15,7 @@ def client(tmp_path, monkeypatch):
                         lambda root, s, progress=None: "1 new, 0 updated, 0 unchanged, 0 removed, 0 failed")
     app = FastAPI()
     library_api.register(app, Settings(notes_dir=tmp_path / "notes"), on_change=lambda: changes.append(1),
-                         background=False)
+                         background=False, indexed=set)
     c = TestClient(app)
     c.changes = changes
     c.notes = tmp_path / "notes"
@@ -89,7 +89,7 @@ def test_background_indexing_returns_immediately(tmp_path, monkeypatch):
 
     monkeypatch.setattr(library_api.ingest, "run", slow_ingest)
     app = FastAPI()
-    library_api.register(app, Settings(notes_dir=tmp_path / "notes"))
+    library_api.register(app, Settings(notes_dir=tmp_path / "notes"), indexed=set)
     c = TestClient(app)
     r = c.post("/api/library/upload", headers=LOCAL, data={"uni": "NHH", "course": "BED3E"},
                files=[("files", ("a.md", b"# A", "text/markdown"))]).json()
@@ -104,3 +104,24 @@ def test_background_indexing_returns_immediately(tmp_path, monkeypatch):
             break
         time.sleep(0.1)
     assert not s["running"] and s["report"].startswith("2 new")
+
+
+def test_tree_shows_index_status_per_file(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    report = SimpleNamespace(failed=[("NHH/BED3E/bad.pdf", "ValueError: no text")])
+    monkeypatch.setattr(library_api.ingest, "run", lambda root, s, progress=None: report)
+    notes = tmp_path / "notes"
+    for name in ("done.md", "new.md", "bad.pdf"):
+        (notes / "NHH/BED3E").mkdir(parents=True, exist_ok=True)
+        (notes / "NHH/BED3E" / name).write_bytes(b"x")
+    app = FastAPI()
+    library_api.register(app, Settings(notes_dir=notes), background=False, indexed=lambda: {"NHH/BED3E/done.md"})
+    c = TestClient(app)
+    c.request("DELETE", "/api/library/file", params={"path": "NHH/BED3E/new.md"}, headers=LOCAL)  # runs ingest
+    (notes / "NHH/BED3E/new.md").write_bytes(b"x")
+
+    files = {f["name"]: f for f in c.get("/api/library").json()["tree"][0]["subjects"][0]["files"]}
+    assert files["done.md"]["status"] == "indexed"
+    assert files["new.md"]["status"] == "waiting"
+    assert files["bad.pdf"]["status"] == "failed" and "no text" in files["bad.pdf"]["error"]
+

@@ -45,20 +45,28 @@ def run(root: Path, s: Settings | None = None, embed: BaseEmbedding | None = Non
     known = manifest.all()
     files = scan(root)
 
+    def remove(path: str, doc_ids: list[str]) -> None:
+        for doc_id in doc_ids:
+            vs.delete(doc_id)
+        manifest.remove(path)
+        report.removed += 1
+
     on_disk = {meta.path for _, meta in files}
     for path, (_, doc_ids) in known.items():
         if path not in on_disk:
-            for doc_id in doc_ids:
-                vs.delete(doc_id)
-            manifest.remove(path)
-            report.removed += 1
+            remove(path, doc_ids)
 
     for i, (file, meta) in enumerate(files, 1):
         if progress:
             progress(i, len(files), meta.path)
         old = known.get(meta.path)
         try:
-            sha = hashlib.sha256(file.read_bytes()).hexdigest()
+            try:
+                sha = hashlib.sha256(file.read_bytes()).hexdigest()
+            except FileNotFoundError:  # deleted (e.g. in the library) after the scan: a removal, not a failure
+                if old:
+                    remove(meta.path, old[1])
+                continue
             if old and old[0] == sha:
                 report.unchanged += 1
                 continue
