@@ -148,6 +148,17 @@ Each phase ends working and demoable.
 9. **Remaining experts/tools:** Exam strategist, Connections finder, topic experts (`experts.yaml`), `explain_code`, `query_dataset`.
 10. **Portfolio polish:** README with architecture diagram, eval results, demo GIF.
 
+## 10b. Calendar (phase 8, v1) — agreed 2026-09-29
+
+A `/calendar` page (header link next to Library), same visual style as `/library`.
+
+- **Events** (Postgres `cal_events`): uni, course, kind ∈ {exam, arbeidskrav, deadline, other}, title, due date (+ optional time), status ∈ {suggested, confirmed, dismissed}, source citation, uncertain flag. Manual add/edit/delete.
+- **Find deadlines**: per subject in the Library, hybrid-search the subject's notes with Norwegian + English deadline queries (arbeidskrav, innlevering, frist, obligatorisk, eksamen, exam, deadline, due, semesterplan); Claude Haiku (json_schema) extracts dated items from **only those passages**, resolving "uke 42" / weekdays against today's date. Past or unparseable dates are dropped; results become **suggestions** the user confirms or dismisses — nothing is scheduled from an unconfirmed item. Duplicates of existing events are skipped.
+- **Availability** (`cal_prefs`): hours per weekday, block length (default 90 min), day start hour.
+- **Planner** (deterministic Python, `cal_blocks`): fills available blocks from today until the last confirmed event. Each event is only eligible within a window before its due date (exam 28 days, arbeidskrav 14, deadline 10, other 7) and never on/after its due date; priority = kind weight × closeness ÷ (1 + blocks already given), so nearer and heavier items get more time while others still get some. Last 3 days before an exam → "exam prep" with past exam papers; arbeidskrav/deadline blocks are titled after the assignment; study blocks cycle through the subject's note files as topics. Re-planning keeps past and done blocks and replaces the rest.
+- **Views**: *Today* (today's blocks in order + everything due within 7 days), *Week* (7-day grid), *Deadlines* (suggestions + confirmed list), *Availability*. Blocks can be ticked done; "Study in chat" copies a ready prompt and opens the chat.
+- **Later**: Google Calendar sync; quiz weak spots feeding the planner; uni-wide admin documents (exam schedules not stored under a subject).
+
 ## 11. Later (not in scope)
 
 Auto-ingest file watcher · voice mode · concept graph view · Anki export · lecture recording transcription/summaries · custom Next.js dashboard.

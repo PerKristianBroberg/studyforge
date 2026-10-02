@@ -17,13 +17,15 @@ class Settings:
     embed_model: str = "BAAI/bge-m3"
     embed_dim: int = 1024
     rerank_model: str = "BAAI/bge-reranker-v2-m3"
-    top_k: int = 30
+    # ponytail: candidates per retriever; reranking ~2x top_k passages on CPU dominates answer time (30 took ~1 min)
+    top_k: int = 10
     top_n: int = 6
     # ponytail: calibration knob — below this rerank score a passage counts as "not in your notes".
     # Tune against the refusal cases in evals/golden.jsonl.
     rerank_min_score: float = 0.05
     expert_model: str = "claude-sonnet-5-5"
     router_model: str = "claude-haiku-4-5"  # routing, personas, eval judge
+    calendar_prefix: str = "cal"  # tables cal_events, cal_blocks, cal_prefs
 
     @classmethod
     def from_env(cls) -> "Settings":

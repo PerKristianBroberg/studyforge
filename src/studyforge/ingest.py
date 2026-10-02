@@ -2,6 +2,7 @@ import argparse
 import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 from llama_index.core import Document
 from llama_index.core.base.embeddings.base import BaseEmbedding
@@ -35,7 +36,8 @@ def _splitters(docs: list[Document]) -> list:
     return [MarkdownNodeParser(), SentenceSplitter(chunk_size=512, chunk_overlap=64)]
 
 
-def run(root: Path, s: Settings | None = None, embed: BaseEmbedding | None = None) -> Report:
+def run(root: Path, s: Settings | None = None, embed: BaseEmbedding | None = None,
+        progress: Callable[[int, int, str], None] | None = None) -> Report:
     if not root.is_dir():  # an empty scan would otherwise "remove" every ingested file
         raise FileNotFoundError(f"notes dir not found: {root}")
     s = s or Settings.from_env()
@@ -43,18 +45,28 @@ def run(root: Path, s: Settings | None = None, embed: BaseEmbedding | None = Non
     known = manifest.all()
     files = scan(root)
 
+    def remove(path: str, doc_ids: list[str]) -> None:
+        for doc_id in doc_ids:
+            vs.delete(doc_id)
+        manifest.remove(path)
+        report.removed += 1
+
     on_disk = {meta.path for _, meta in files}
     for path, (_, doc_ids) in known.items():
         if path not in on_disk:
-            for doc_id in doc_ids:
-                vs.delete(doc_id)
-            manifest.remove(path)
-            report.removed += 1
+            remove(path, doc_ids)
 
-    for file, meta in files:
+    for i, (file, meta) in enumerate(files, 1):
+        if progress:
+            progress(i, len(files), meta.path)
         old = known.get(meta.path)
         try:
-            sha = hashlib.sha256(file.read_bytes()).hexdigest()
+            try:
+                sha = hashlib.sha256(file.read_bytes()).hexdigest()
+            except FileNotFoundError:  # deleted (e.g. in the library) after the scan: a removal, not a failure
+                if old:
+                    remove(meta.path, old[1])
+                continue
             if old and old[0] == sha:
                 report.unchanged += 1
                 continue

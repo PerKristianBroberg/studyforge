@@ -120,3 +120,27 @@ def test_unreadable_file_is_reported_not_fatal(tmp_path, db_settings, mock_embed
     monkeypatch.setattr(Path, "read_bytes", locked)
     r = ingest.run(tmp_path, db_settings, mock_embed)
     assert r.new == 1 and r.failed[0][0] == "UiO/A/a.md"
+
+
+def test_progress_is_reported_per_file(tmp_path, db_settings, mock_embed):
+    write(tmp_path, "UiO/A/a.md", "Graphs.")
+    write(tmp_path, "UiO/A/b.md", "Trees.")
+    seen = []
+    ingest.run(tmp_path, db_settings, mock_embed, progress=lambda done, total, path: seen.append((done, total, path)))
+    assert seen == [(1, 2, "UiO/A/a.md"), (2, 2, "UiO/A/b.md")]
+
+
+def test_file_deleted_mid_run_counts_as_removed_not_failed(tmp_path, db_settings, mock_embed):
+    write(tmp_path, "UiO/A/a.md", "Graphs.")
+    b = write(tmp_path, "UiO/A/b.md", "Trees.")
+    ingest.run(tmp_path, db_settings, mock_embed)
+    write(tmp_path, "UiO/A/a.md", "Graphs, edited.")  # forces a real pass over a before b is reached
+
+    def delete_b(done, total, path):  # the user deletes b in the library while a is being indexed
+        if path == "UiO/A/a.md":
+            b.unlink()
+
+    r = ingest.run(tmp_path, db_settings, mock_embed, progress=delete_b)
+    assert (r.updated, r.removed, r.failed) == (1, 1, [])
+    assert chunks_for(db_settings, "UiO/A/b.md") == []
+    assert "UiO/A/b.md" not in Manifest(db_settings).all()

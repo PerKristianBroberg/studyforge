@@ -1,5 +1,6 @@
 """Chainlit UI: uv run --env-file .env chainlit run src/studyforge/ui.py --host 127.0.0.1"""
 import threading
+from datetime import date
 from collections import defaultdict
 from functools import lru_cache
 from pathlib import Path
@@ -8,7 +9,7 @@ import chainlit as cl
 from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg import Connection
 
-from studyforge import app, ingest, library_api
+from studyforge import app, calendar_api, ingest, library_api
 from studyforge.config import Settings
 from studyforge.experts import discover
 from studyforge.sources import cited, passages, split_label
@@ -44,13 +45,23 @@ def _graph():
 # the /library page (public/library.html + JSON API) lives on Chainlit's own FastAPI server
 from chainlit.server import app as _server  # noqa: E402
 
-library_api.register(_server, S, on_change=lambda: _cached_graph.cache_clear())
+def _after_index() -> None:
+    _cached_graph.cache_clear()  # a new course needs a new expert
+    try:
+        _scan_deadlines(date.today())  # read only newly indexed files for dates; most cost no AI call
+    except Exception as e:  # e.g. Claude unreachable: unscanned files are retried after the next index or "find"
+        print(f"deadline scan failed: {type(e).__name__}: {e}")
+
+
+_indexer = library_api.register(_server, S, on_change=_after_index)
+_scan_deadlines = calendar_api.register(_server, S)
 
 
 @cl.on_app_startup
 async def warm_up():
     # load models + personas in the background so the first message doesn't wait for them
     threading.Thread(target=_graph, daemon=True).start()
+    _indexer.request()  # files added or interrupted while the app was down; unchanged files are skipped cheaply
 
 
 @cl.set_chat_profiles
@@ -117,8 +128,8 @@ async def _handle_uploads(files, expert: str) -> None:
         except UploadRejected as e:
             lines.append(f"- rejected {e}")
     report = await cl.make_async(ingest.run)(S.notes_dir, S) if saved else None
-    if report and report.new:
-        _cached_graph.cache_clear()  # a new course needs a new expert; shows up in the picker on the next chat
+    if report and (report.new or report.updated):
+        await cl.make_async(_after_index)()  # new expert in the picker on the next chat + dates for the calendar
     await cl.Message(content="\n".join([f"Saved {saved} file(s) to **{uni}/{course}**.",
                                         *( [f"Ingest: {report}"] if report else [] ), *lines])).send()
 

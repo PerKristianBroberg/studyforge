@@ -1,9 +1,11 @@
+import os
 import re
 from functools import lru_cache
 from pathlib import Path
 
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import EasyOcrOptions, OcrMode, PdfPipelineOptions
+from docling.datamodel.pipeline_options import (AcceleratorOptions, EasyOcrOptions, OcrMode, PdfPipelineOptions,
+                                                TableFormerMode, TableStructureOptions)
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from llama_index.core import Document
 
@@ -14,9 +16,13 @@ WIKILINK = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
 
 @lru_cache(maxsize=2)
 def _converter(ocr: bool = False) -> DocumentConverter:
+    # CPU-only: the accurate table model took minutes per table-heavy PDF; fast mode + all cores is the trade-off
+    speed = {"table_structure_options": TableStructureOptions(mode=TableFormerMode.FAST),
+             "accelerator_options": AcceleratorOptions(num_threads=os.cpu_count() or 4)}
     # OCR is slow on CPU, so it only runs as a fallback for PDFs without a text layer (scans, photos)
-    opts = (PdfPipelineOptions(do_ocr=True, ocr_options=EasyOcrOptions(lang=["no", "en"], mode=OcrMode.FULL_PAGE))
-            if ocr else PdfPipelineOptions(do_ocr=False))
+    opts = (PdfPipelineOptions(do_ocr=True, ocr_options=EasyOcrOptions(lang=["no", "en"], mode=OcrMode.FULL_PAGE),
+                               **speed)
+            if ocr else PdfPipelineOptions(do_ocr=False, **speed))
     return DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)})
 
 

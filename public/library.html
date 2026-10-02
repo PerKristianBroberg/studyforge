@@ -44,7 +44,13 @@
   .subject { padding: 16px 18px; border-top: 1px solid var(--line); }
   .subject:first-child { border-top: 0; }
   .subject-head { display: flex; align-items: center; gap: 12px; }
-  .subject-name { font-weight: 500; font-size: 16px; cursor: pointer; }
+  .subject-name { font-weight: 500; font-size: 16px; }
+  button.fold { background: none; border: 0; padding: 0; border-radius: 4px; font: inherit; color: inherit;
+                cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  button.fold::before { content: "▸"; display: inline-block; font-size: 12px; width: 10px; color: var(--muted); transition: transform .15s; }
+  button.fold[aria-expanded="true"]::before { transform: rotate(90deg); }
+  button.fold:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  .uni-name .meta { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--muted); font-size: 13px; }
   .counts { color: var(--muted); font-size: 13px; flex: 1; }
   .drop { margin-top: 12px; border: 1.5px dashed var(--line); border-radius: 12px; padding: 18px; text-align: center;
           color: var(--muted); font-size: 14px; transition: all .15s; }
@@ -55,6 +61,13 @@
   .files li { display: flex; align-items: center; gap: 10px; font-size: 14px; padding: 4px 0; }
   .files .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tag { font-size: 11px; color: var(--green-ink); background: var(--mint); border-radius: 999px; padding: 1px 9px; }
+  .state { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .state::before { content: "●"; margin-right: 5px; font-size: 9px; vertical-align: 1px; }
+  .state.indexed { color: var(--green); }
+  .state.indexing { color: var(--green); animation: pulse 1.2s ease-in-out infinite; }
+  .state.failed { color: var(--red); cursor: help; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .state.indexing { animation: none; } }
   .empty { color: var(--muted); text-align: center; padding: 48px 0; }
   .hidden { display: none; }
 </style>
@@ -66,7 +79,7 @@
 </script>
 <header>
   <span class="brand">studyforge<b>.</b></span>
-  <a href="/">← Back to chat</a>
+  <nav><a href="/calendar">Calendar</a>&nbsp;&nbsp;&nbsp;<a href="/">← Back to chat</a></nav>
 </header>
 <main>
   <div class="row" style="gap:14px;align-items:center"><img src="/public/mascot.svg" width="64" height="64" alt=""><h1>Library</h1></div>
@@ -86,7 +99,10 @@
 const TYPES = { notes: "Notes", exams: "Exams", code: "Code", admin: "Admin" };
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const closed = new Set();  // file lists are shown unless collapsed
+// courses start collapsed, universities open; what you toggle is remembered in this browser
+const remembered = (k) => { try { return new Set(JSON.parse(localStorage.getItem(k) || "[]")); } catch (e) { return new Set(); } };
+const remember = (k, set) => { try { localStorage.setItem(k, JSON.stringify([...set])); } catch (e) {} };
+const openCourses = remembered("sf-open-courses"), closedUnis = remembered("sf-closed-unis");
 
 function status(text) { const el = $("#status"); el.textContent = text; el.style.display = text ? "block" : "none"; }
 
@@ -98,6 +114,12 @@ async function api(method, url, body) {
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.detail || r.statusText);
   return data;
+}
+
+function indexSummary(files) {
+  const done = files.filter((f) => f.status === "indexed").length, failed = files.filter((f) => f.status === "failed").length;
+  if (!files.length) return "";
+  return (done === files.length ? " · all indexed" : ` · ${done}/${files.length} indexed`) + (failed ? ` · ${failed} failed` : "");
 }
 
 function counts(c) {
@@ -112,28 +134,31 @@ function render(tree) {
   if (!tree.length) { root.innerHTML = `<div class="empty">No universities yet.<br><img src="/public/mascot.svg" width="72" alt="" style="margin-top:12px"></div>`; return; }
   root.innerHTML = tree.map((u) => `
     <section class="uni">
-      <div class="uni-name">${esc(u.uni)}</div>
-      <div class="card">
+      <div class="uni-name"><button class="fold" data-fold-uni="${esc(u.uni)}" aria-expanded="${!closedUnis.has(u.uni)}">${esc(u.uni)}
+        <span class="meta">${u.subjects.length} subject${u.subjects.length === 1 ? "" : "s"}</span></button></div>
+      <div class="card ${closedUnis.has(u.uni) ? "hidden" : ""}">
         ${u.subjects.map((s) => {
-          const key = `${u.uni}/${s.name}`;
+          const key = `${u.uni}/${s.name}`, open = openCourses.has(key);
           return `
           <div class="subject" data-uni="${esc(u.uni)}" data-course="${esc(s.name)}">
             <div class="subject-head">
-              <span class="subject-name" data-toggle>${esc(s.name)}</span>
-              <span class="counts">${counts(s.counts)}</span>
+              <button class="fold subject-name" data-fold-course aria-expanded="${open}">${esc(s.name)}</button>
+              <span class="counts">${counts(s.counts)}${indexSummary(s.files)}</span>
               <span data-del-subject-slot><button class="ghost" data-arm-subject title="Delete subject">Delete</button></span>
             </div>
+            <div class="body ${open ? "" : "hidden"}">
             <div class="drop" data-drop>
               <div class="row" style="justify-content:center">
                 <select data-type>${Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
-                <span>Drop files here or <label>browse<input type="file" multiple data-file
-                  accept=".pdf,.pptx,.docx,.md,.txt,.py,.java,.js,.ts,.c,.h,.cpp,.cs,.go,.rs,.r,.sql"></label></span>
+                <span>Drop files or a .zip here, or <label>browse<input type="file" multiple data-file
+                  accept=".zip,.pdf,.pptx,.docx,.md,.txt,.py,.java,.js,.ts,.c,.h,.cpp,.cs,.go,.rs,.r,.sql"></label></span>
               </div>
             </div>
-            <ul class="files ${closed.has(key) ? "hidden" : ""}">
-              ${s.files.map((f) => `<li><span class="name">${esc(f.name)}</span><span class="tag">${TYPES[f.type] || esc(f.type)}</span>
+            <ul class="files">
+              ${s.files.map((f) => `<li><span class="name">${esc(f.name)}</span>${state(f)}<span class="tag">${TYPES[f.type] || esc(f.type)}</span>
                 <span data-del-file-slot><button class="ghost" data-arm-file="${esc(f.path)}">Delete</button></span></li>`).join("")}
             </ul>
+            </div>
           </div>`;
         }).join("") || `<div class="subject counts">No subjects</div>`}
       </div>
@@ -143,6 +168,36 @@ function render(tree) {
 
 async function load() { render((await api("GET", "/api/library")).tree); }
 
+const STATES = { indexed: "Indexed", indexing: "Indexing…", waiting: "Waiting", failed: "Failed" };
+const state = (f) => f.status ? `<span class="state ${f.status}"${f.error ? ` title="${esc(f.error)}"` : ""}>${STATES[f.status]}</span>` : "";
+const mins = (sec) => sec < 60 ? `${Math.round(sec)} s` : `${Math.round(sec / 60)} min`;
+function timing(s) {
+  if (!s.elapsed) return "";
+  return ` (${mins(s.elapsed)} so far)`;
+}
+
+// indexing runs in the background on the server, one file at a time; show progress until it's done
+let polling = false;
+async function watchIndexing(prefix) {
+  if (polling) return;
+  polling = true;
+  let shown = -1;
+  try {
+    for (;;) {
+      const s = await api("GET", "/api/library/indexing");
+      if (s.running && s.done !== shown) { shown = s.done; load(); }  // move the "Indexing…" marker along
+      if (!s.running) {
+        status(`${prefix}${s.error ? "Indexing failed: " + s.error : "Indexed — " + s.report}`);
+        load();
+        return;
+      }
+      status(`${prefix}Indexing ${s.done}/${s.total || "?"}${s.current ? ": " + s.current : ""}${timing(s)}… you can keep working.`);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  } catch (e) { status(`${prefix}Lost contact with the server while indexing (${e.message}). Your files are saved.`); }
+  finally { polling = false; }
+}
+
 async function upload(subjectEl, fileList) {
   if (!fileList.length) return;
   const fd = new FormData();
@@ -150,18 +205,21 @@ async function upload(subjectEl, fileList) {
   fd.append("course", subjectEl.dataset.course);
   fd.append("doc_type", $("[data-type]", subjectEl).value);
   for (const f of fileList) fd.append("files", f);
-  status(`Uploading ${fileList.length} file(s) and indexing… this can take a minute for PDFs.`);
+  status(`Uploading ${fileList.length} file(s)…`);
   try {
     const r = await api("POST", "/api/library/upload", fd);
     render(r.tree);
-    status(`Saved ${r.saved} file(s). ${r.report}${r.rejected.length ? " Rejected: " + r.rejected.join("; ") : ""}`);
+    const note = `Saved ${r.saved} file(s).${r.rejected.length ? " Skipped: " + r.rejected.join("; ") + "." : ""} `;
+    if (r.saved) watchIndexing(note); else status(note);
   } catch (e) { status(`Upload failed: ${e.message}`); }
 }
 
 $("#add").onclick = async () => {
   const uni = $("#uni").value.trim(), course = $("#course").value.trim();
   if (!uni || !course) return status("Pick a university and type a subject.");
-  try { render((await api("POST", "/api/library/subjects", { uni, course })).tree); $("#course").value = "";
+  try { const r = await api("POST", "/api/library/subjects", { uni, course });
+        openCourses.add(`${uni}/${course}`); closedUnis.delete(uni);  // a new subject opens, ready for files
+        render(r.tree); $("#course").value = "";
         status(`Added ${uni}/${course}. Upload notes to create its expert.`); }
   catch (e) { status(`Not added: ${e.message}`); }
 };
@@ -170,10 +228,20 @@ $("#course").addEventListener("keydown", (e) => e.key === "Enter" && $("#add").c
 const tree = $("#tree");
 tree.addEventListener("click", async (e) => {
   const subject = e.target.closest(".subject");
-  if (e.target.matches("[data-toggle]")) {
-    const key = `${subject.dataset.uni}/${subject.dataset.course}`;
-    closed.has(key) ? closed.delete(key) : closed.add(key);
-    $(".files", subject).classList.toggle("hidden");
+  const fold = e.target.closest("[data-fold-course], [data-fold-uni]");
+  if (fold) {
+    const open = fold.getAttribute("aria-expanded") !== "true";
+    fold.setAttribute("aria-expanded", String(open));
+    if (fold.dataset.foldUni !== undefined) {
+      open ? closedUnis.delete(fold.dataset.foldUni) : closedUnis.add(fold.dataset.foldUni);
+      remember("sf-closed-unis", closedUnis);
+      fold.closest(".uni").querySelector(".card").classList.toggle("hidden", !open);
+    } else {
+      const key = `${subject.dataset.uni}/${subject.dataset.course}`;
+      open ? openCourses.add(key) : openCourses.delete(key);
+      remember("sf-open-courses", openCourses);
+      $(".body", subject).classList.toggle("hidden", !open);
+    }
   } else if (e.target.matches("[data-arm-subject]")) {           // two-step delete, no browser dialogs
     e.target.parentElement.innerHTML = `<button class="danger" data-del-subject>Delete ${esc(subject.dataset.course)}</button>
       <button class="ghost" data-cancel>Cancel</button>`;
@@ -184,11 +252,11 @@ tree.addEventListener("click", async (e) => {
     load();
   } else if (e.target.matches("[data-del-subject]")) {
     try { const r = await api("DELETE", `/api/library/subject?uni=${encodeURIComponent(subject.dataset.uni)}&course=${encodeURIComponent(subject.dataset.course)}`);
-          render(r.tree); status(`Deleted ${subject.dataset.uni}/${subject.dataset.course}. ${r.report}`); }
+          render(r.tree); watchIndexing(`Deleted ${subject.dataset.uni}/${subject.dataset.course}. `); }
     catch (err) { status(`Not deleted: ${err.message}`); }
   } else if (e.target.matches("[data-del-file]")) {
     try { const r = await api("DELETE", `/api/library/file?path=${encodeURIComponent(e.target.dataset.delFile)}`);
-          render(r.tree); status(`Deleted file. ${r.report}`); }
+          render(r.tree); watchIndexing("Deleted file. "); }
     catch (err) { status(`Not deleted: ${err.message}`); }
   }
 });
@@ -202,7 +270,7 @@ for (const ev of ["dragover", "dragleave", "drop"]) {
     if (ev === "drop") upload(drop.closest(".subject"), e.dataTransfer.files);
   });
 }
-load().catch((e) => status(`Could not load library: ${e.message}`));
+load().then(async () => { if ((await api("GET", "/api/library/indexing")).running) watchIndexing(""); }).catch((e) => status(`Could not load library: ${e.message}`));
 </script>
 </body>
 </html>
