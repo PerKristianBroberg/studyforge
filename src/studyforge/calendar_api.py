@@ -46,24 +46,25 @@ def _valid_prefs(p: dict) -> dict:
     return {"hours": hours, "block_minutes": block, "start_hour": start}
 
 
-def _default_find(s: Settings):
+def _default_scan(s: Settings) -> Callable[[date], int]:
     llm = None
 
-    def find(uni: str, course: str, today: date) -> list[Event]:
+    def scan(today: date) -> int:
         nonlocal llm
         from langchain_anthropic import ChatAnthropic
 
-        from studyforge.deadlines import find_deadlines
+        from studyforge.deadlines import scan_new
         llm = llm or ChatAnthropic(model=s.router_model, max_tokens=2048)
-        return find_deadlines(uni, course, s, llm, today)
+        return scan_new(s, llm, today)
 
-    return find
+    return scan
 
 
-def register(app: FastAPI, s: Settings, find: Callable[[str, str, date], list[Event]] | None = None,
-             today: Callable[[], date] = date.today) -> None:
+def register(app: FastAPI, s: Settings, scan: Callable[[date], int] | None = None,
+             today: Callable[[], date] = date.today) -> Callable[[date], int]:
+    """Returns the deadline scan, so indexing can run it on newly indexed files."""
     router = APIRouter()
-    find = find or _default_find(s)
+    scan = scan or _default_scan(s)
 
     def cal() -> Calendar:
         return Calendar(s)
@@ -134,18 +135,11 @@ def register(app: FastAPI, s: Settings, find: Callable[[str, str, date], list[Ev
         return state()
 
     @router.post("/api/calendar/find")
-    def find_all(request: Request):
+    def find_new(request: Request):
+        # normally already done after indexing; this catches files indexed while the app was down
         require_local_origin(request)
-        c, t, added = cal(), today(), 0
-        known = {(e.uni, e.course, e.kind, e.due, e.title.lower()) for e in c.events()}  # incl. dismissed
-        for sub in subjects():
-            for e in find(sub["uni"], sub["course"], t):
-                key = (e.uni, e.course, e.kind, e.due, e.title.lower())
-                if key not in known:
-                    known.add(key)
-                    c.add_event(e)
-                    added += 1
-        return {"added": added, **state()}
+        return {"added": scan(today()), **state()}
 
     for route in reversed(router.routes):  # before Chainlit's catch-all GET
         app.router.routes.insert(0, route)
+    return scan

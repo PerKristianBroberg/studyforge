@@ -131,21 +131,73 @@ def test_find_deadlines_turns_passages_into_suggestions():
         Found(kind="exam", title="Old exam", date="2025-12-01", time=None, source="x", uncertain=False),  # past
         Found(kind="deadline", title="Garbage", date="uke 42", time=None, source="x", uncertain=False),   # unparseable
     ])
-    found = find_deadlines("UiB", "INF100", None, llm, MON, search=lambda q, scope, s: [HIT])
+    found = find_deadlines("UiB", "INF100", [HIT], llm, MON)
     assert [(e.kind, e.title, e.due, e.due_time, e.status, e.uncertain) for e in found] == [
         ("arbeidskrav", "Arbeidskrav 2", date(2026, 10, 9), "23:59", "suggested", True)]
     assert "uke 41" in llm.prompts[0] and "2026-10-05" in llm.prompts[0]
 
 
-def test_find_deadlines_without_passages_does_not_call_llm():
+@pytest.mark.parametrize("text", [
+    "Recursion: a function that calls itself.",            # no deadline word, no date
+    "The exam covers chapters 1-5.",                       # deadline word, no date
+    "Lecture 3 was moved to 14.10.",                       # date, no deadline word
+    "Forelesningen flyttes til 14. oktober.",              # Norwegian: date, no deadline word
+])
+def test_find_deadlines_without_dates_does_not_call_llm(text):
     llm = StubLLM([])
-    assert find_deadlines("UiB", "INF100", None, llm, MON, search=lambda q, scope, s: []) == []
+    assert find_deadlines("UiB", "INF100", [Hit(text, 0, "UiB/INF100/a.md", None, "UiB", "INF100")], llm, MON) == []
     assert llm.prompts == []
 
 
-def test_find_deadlines_keeps_every_section_of_the_same_file():
-    exam = Hit("Skriftlig eksamen 8. desember 2026 kl. 09:00.", 0.7, "UiB/INF100/admin/emneplan.pdf", 3, "UiB", "INF100")
+@pytest.mark.parametrize("text", [
+    "Arbeidskrav 1 har frist fredag i uke 41.",
+    "Skriftlig eksamen 8. desember 2026.",
+    "Innlevering av oblig 2: 16.10.2026 kl. 23:59.",
+    "Assignment 2 is due October 9 at 23:59.",
+    "Final exam: Dec 8, 2026.",
+    "Submission deadline 2026-10-16.",
+    "Midterm in week 42.",
+])
+def test_deadline_and_date_in_norwegian_or_english_reach_the_llm(text):
     llm = StubLLM([])
-    find_deadlines("UiB", "INF100", None, llm, MON, search=lambda q, scope, s: [HIT, exam])
-    # same file + page, different chunks: both must reach the model (the exam was being dropped)
-    assert "uke 41" in llm.prompts[0] and "8. desember" in llm.prompts[0]
+    find_deadlines("UiB", "INF100", [Hit(text, 0, "UiB/INF100/a.md", None, "UiB", "INF100")], llm, MON)
+    assert len(llm.prompts) == 1
+
+
+
+def test_find_deadlines_sends_only_passages_with_dates():
+    exam = Hit("Skriftlig eksamen 8. desember 2026 kl. 09:00.", 0.7, "UiB/INF100/admin/emneplan.pdf", 3, "UiB", "INF100")
+    other = Hit("Rekursjon er en funksjon som kaller seg selv.", 0.9, "UiB/INF100/admin/emneplan.pdf", 1, "UiB", "INF100")
+    llm = StubLLM([])
+    find_deadlines("UiB", "INF100", [HIT, other, exam], llm, MON)
+    assert "uke 41" in llm.prompts[0] and "8. desember" in llm.prompts[0] and "Rekursjon" not in llm.prompts[0]
+
+
+def test_scan_reads_each_file_version_once(tmp_path, db_settings, mock_embed):
+    import dataclasses
+
+    from studyforge import deadlines, ingest
+    s = dataclasses.replace(db_settings, calendar_prefix="test_cal")
+    drop = sa.text("DROP TABLE IF EXISTS test_cal_events, test_cal_blocks, test_cal_prefs, test_cal_scanned")
+    with engine(s.db_url).begin() as c:
+        c.execute(drop)
+    plan_md = tmp_path / "UiB/INF100/admin/emneplan.md"
+    plan_md.parent.mkdir(parents=True)
+    plan_md.write_text("Arbeidskrav 1 har frist 16.10.2026 kl. 23:59.", encoding="utf-8")
+    (tmp_path / "UiB/INF100/rekursjon.md").write_text("Rekursjon er en funksjon som kaller seg selv.", encoding="utf-8")
+    ingest.run(tmp_path, s, mock_embed)
+    llm = StubLLM([Found(kind="arbeidskrav", title="Arbeidskrav 1", date="2026-10-16", time="23:59",
+                         source="UiB/INF100/admin/emneplan.md")])
+    try:
+        assert deadlines.scan_new(s, llm, MON) == 1
+        assert len(llm.prompts) == 1 and "16.10.2026" in llm.prompts[0]  # only the file with a date reached Claude
+        assert [e.title for e in Calendar(s).events()] == ["Arbeidskrav 1"]
+
+        assert deadlines.scan_new(s, llm, MON) == 0 and len(llm.prompts) == 1  # nothing new: no AI at all
+
+        plan_md.write_text("Arbeidskrav 1 har frist 16.10.2026 kl. 23:59. Eksamen 8. desember.", encoding="utf-8")
+        ingest.run(tmp_path, s, mock_embed)
+        assert deadlines.scan_new(s, llm, MON) == 0 and len(llm.prompts) == 2  # changed file re-read, no duplicate
+    finally:
+        with engine(s.db_url).begin() as c:
+            c.execute(drop)

@@ -46,7 +46,7 @@ class Calendar:
     def __init__(self, s: Settings):
         self.eng = engine(s.db_url)
         p = s.calendar_prefix  # from Settings, not user input
-        self.ev, self.bl, self.pr = f"{p}_events", f"{p}_blocks", f"{p}_prefs"
+        self.ev, self.bl, self.pr, self.sc = f"{p}_events", f"{p}_blocks", f"{p}_prefs", f"{p}_scanned"
         with self.eng.begin() as c:
             c.execute(sa.text(f"""CREATE TABLE IF NOT EXISTS {self.ev} (
                 id serial PRIMARY KEY, uni text NOT NULL, course text NOT NULL, kind text NOT NULL, title text NOT NULL,
@@ -55,6 +55,18 @@ class Calendar:
                 id serial PRIMARY KEY, day date NOT NULL, start text NOT NULL, minutes int NOT NULL, uni text NOT NULL,
                 course text NOT NULL, kind text NOT NULL, topic text NOT NULL, event_id int, done boolean NOT NULL DEFAULT false)"""))
             c.execute(sa.text(f"CREATE TABLE IF NOT EXISTS {self.pr} (key text PRIMARY KEY, value jsonb NOT NULL)"))
+            # which file version (sha) was already read for deadlines, so each version costs at most one scan
+            c.execute(sa.text(f"CREATE TABLE IF NOT EXISTS {self.sc} (path text PRIMARY KEY, sha text NOT NULL)"))
+
+    # deadline scanning
+    def scanned(self) -> dict[str, str]:
+        with self.eng.connect() as c:
+            return dict(c.execute(sa.text(f"SELECT path, sha FROM {self.sc}")).all())
+
+    def mark_scanned(self, path: str, sha: str) -> None:
+        with self.eng.begin() as c:
+            c.execute(sa.text(f"INSERT INTO {self.sc} (path, sha) VALUES (:p, :s) "
+                              "ON CONFLICT (path) DO UPDATE SET sha = :s"), {"p": path, "s": sha})
 
     # events
     def events(self) -> list[Event]:

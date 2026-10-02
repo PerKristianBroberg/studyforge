@@ -78,7 +78,7 @@
     <div class="row" style="gap:14px"><img src="/public/mascot.svg" width="58" height="66" alt="">
       <div><h1>Calendar</h1><div class="sub" id="subtitle"></div></div></div>
     <div class="row">
-      <button class="soft" id="find">Find deadlines in my documents</button>
+      <button class="soft" id="find" title="Dates are found automatically when files are indexed; this checks any file that was missed">Check for new deadlines</button>
       <button class="primary" id="plan">Plan my studying</button>
     </div>
   </div>
@@ -183,7 +183,7 @@ function renderDeadlines(confirmed, suggested) {
       eventRow(e, (e) => `<button class="primary" data-confirm="${e.id}">Confirm</button><button class="ghost" data-dismiss="${e.id}">Dismiss</button>`)).join("")}</div>` : ""}
     <h2>Exams and deadlines</h2>
     <div class="card">${confirmed.map((e) => eventRow(e, (e) => `<span data-slot><button class="ghost" data-arm="${e.id}">Delete</button></span>`)).join("")
-      || `<div class="empty">None yet. Use <b>Find deadlines in my documents</b> or add one below.</div>`}</div>
+      || `<div class="empty">None yet. Dates in your documents show up here after indexing, or add one below.</div>`}</div>
     <h2>Add manually</h2>
     <div class="row">
       <select id="ev-subject">${subjects || "<option value=''>Add a subject in the Library first</option>"}</select>
@@ -237,9 +237,9 @@ document.addEventListener("click", async (e) => {
   } else if (t.id === "plan") {
     t.disabled = true; await act(api("POST", "/api/calendar/plan"), "Plan updated."); t.disabled = false;
   } else if (t.id === "find") {
-    t.disabled = true; status("Reading your documents for exams and arbeidskrav… this takes a little while.");
+    t.disabled = true; status("Checking files that haven't been read for dates yet…");
     try { const r = await api("POST", "/api/calendar/find"); S = r; render();
-      status(r.added ? `Found ${r.added} new item(s) — check them under Deadlines.` : "No new deadlines found in your documents.");
+      status(r.added ? `Found ${r.added} new item(s) — check them under Deadlines.` : "No new deadlines. Files are checked automatically when they're indexed.");
     } catch (err) { status(`Could not search documents: ${err.message}`); }
     t.disabled = false;
   }

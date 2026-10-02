@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from studyforge import calendar_api
-from studyforge.calendar_store import Event
+from studyforge.calendar_store import Calendar, Event
 from studyforge.store import engine
 
 LOCAL = {"Origin": "http://127.0.0.1:8000"}
@@ -19,18 +19,19 @@ def client(db_settings, tmp_path):
     s = dataclasses.replace(db_settings, calendar_prefix="test_cal", notes_dir=tmp_path / "notes")
     (s.notes_dir / "UiB" / "INF100").mkdir(parents=True)
     (s.notes_dir / "UiB" / "INF100" / "recursion.md").write_text("x", encoding="utf-8")
-    drop = sa.text("DROP TABLE IF EXISTS test_cal_events, test_cal_blocks, test_cal_prefs")
+    drop = sa.text("DROP TABLE IF EXISTS test_cal_events, test_cal_blocks, test_cal_prefs, test_cal_scanned")
     with engine(s.db_url).begin() as c:
         c.execute(drop)
     calls = []
 
-    def fake_find(uni, course, today):
-        calls.append((uni, course))
-        return [Event(None, uni, course, "arbeidskrav", "Arbeidskrav 1", date(2026, 10, 16), "23:59",
-                      "suggested", "UiB/INF100/emneplan.pdf p.2", False)]
+    def fake_scan(today):  # stands in for deadlines.scan_new: adds what it found, returns the count
+        calls.append(today)
+        Calendar(s).add_event(Event(None, "UiB", "INF100", "arbeidskrav", "Arbeidskrav 1", date(2026, 10, 16), "23:59",
+                                    "suggested", "UiB/INF100/emneplan.pdf p.2", False))
+        return 1
 
     app = FastAPI()
-    calendar_api.register(app, s, find=fake_find, today=lambda: TODAY)
+    calendar_api.register(app, s, scan=fake_scan, today=lambda: TODAY)
     c = TestClient(app)
     c.find_calls = calls
     yield c
@@ -61,10 +62,9 @@ def test_manual_exam_prefs_plan_and_done(client):
 
 def test_find_suggests_once_and_confirm(client):
     r = client.post("/api/calendar/find", headers=LOCAL).json()
-    assert r["added"] == 1 and client.find_calls == [("UiB", "INF100")]
+    assert r["added"] == 1 and client.find_calls == [TODAY]
     [s] = r["events"]
     assert s["status"] == "suggested" and s["source"].endswith("p.2")
-    assert client.post("/api/calendar/find", headers=LOCAL).json()["added"] == 0  # no duplicates
     r = client.patch(f"/api/calendar/events/{s['id']}", headers=LOCAL, json={"status": "confirmed"})
     assert r.json()["events"][0]["status"] == "confirmed"
     r = client.delete(f"/api/calendar/events/{s['id']}", headers=LOCAL)
