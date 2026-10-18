@@ -1,3 +1,4 @@
+import threading
 from functools import lru_cache
 
 import sqlalchemy as sa
@@ -17,8 +18,17 @@ def vector_store(s: Settings) -> PGVectorStore:
     )
 
 
-@lru_cache
+# lru_cache alone lets two threads (UI warm-up + background indexer) load the same model twice: 2x RAM
+model_lock = threading.Lock()
+
+
 def embed_model(name: str) -> HuggingFaceEmbedding:
+    with model_lock:
+        return _embed_model(name)
+
+
+@lru_cache
+def _embed_model(name: str) -> HuggingFaceEmbedding:
     return HuggingFaceEmbedding(model_name=name)
 
 

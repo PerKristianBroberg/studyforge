@@ -61,3 +61,16 @@ def test_course_scope_requires_uni():
     import pytest
     with pytest.raises(ValueError):
         Scope(course="MAT1100")
+
+
+def test_concurrent_first_calls_load_the_model_once(monkeypatch):
+    import threading, time
+    from studyforge import store
+    loads = []
+    monkeypatch.setattr(store, "HuggingFaceEmbedding", lambda model_name: (loads.append(1), time.sleep(0.2), object())[2])
+    store._embed_model.cache_clear()
+    threads = [threading.Thread(target=store.embed_model, args=("race-test",)) for _ in range(4)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    store._embed_model.cache_clear()
+    assert len(loads) == 1  # UI warm-up + indexer racing must not hold two copies in RAM

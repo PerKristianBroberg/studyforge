@@ -9,7 +9,7 @@ from llama_index.core.vector_stores import FilterOperator, MetadataFilter, Metad
 from llama_index.postprocessor.sbert_rerank import SentenceTransformerRerank
 
 from studyforge.config import Settings
-from studyforge.store import embed_model, vector_store
+from studyforge.store import embed_model, model_lock, vector_store
 
 
 @dataclass(frozen=True)
@@ -43,8 +43,13 @@ def _filters(scope: Scope) -> MetadataFilters | None:
     return MetadataFilters(filters=fs) if fs else None
 
 
-@lru_cache
 def reranker(model: str, top_n: int) -> SentenceTransformerRerank:
+    with model_lock:
+        return _reranker(model, top_n)
+
+
+@lru_cache
+def _reranker(model: str, top_n: int) -> SentenceTransformerRerank:
     return SentenceTransformerRerank(model=model, top_n=top_n)
 
 
