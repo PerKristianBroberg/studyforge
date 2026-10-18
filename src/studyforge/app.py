@@ -46,7 +46,7 @@ def ask(graph, question: str, requested: str, thread_id: str, interface: str = "
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Chat with your study experts")
-    ap.add_argument("--expert", default="auto", help="expert id (e.g. UiO/INF1010) or 'auto'")
+    ap.add_argument("--expert", default="auto", help="expert id (e.g. NHH/BED3E) or 'auto'")
     ap.add_argument("--thread", default=None, help="conversation id to resume")
     args = ap.parse_args()
     if not os.environ.get("ANTHROPIC_API_KEY"):

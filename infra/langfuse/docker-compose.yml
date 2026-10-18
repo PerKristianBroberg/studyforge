@@ -6,7 +6,7 @@
 services:
   langfuse-worker:
     image: docker.langfuse.com/langfuse/langfuse-worker:4
-    restart: always
+    restart: "no"  # opt-in: only runs when started explicitly (memory)
     depends_on: &langfuse-depends-on
       postgres:
         condition: service_healthy
@@ -108,7 +108,7 @@ services:
 
   langfuse-web:
     image: docker.langfuse.com/langfuse/langfuse:4
-    restart: always
+    restart: "no"  # opt-in: only runs when started explicitly (memory)
     depends_on: *langfuse-depends-on
     ports:
       - 127.0.0.1:3000:3000
@@ -136,7 +136,7 @@ services:
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server:25.12
-    restart: always
+    restart: "no"  # opt-in: only runs when started explicitly (memory)
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
@@ -157,7 +157,7 @@ services:
 
   minio:
     image: cgr.dev/chainguard/minio
-    restart: always
+    restart: "no"  # opt-in: only runs when started explicitly (memory)
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
@@ -178,7 +178,7 @@ services:
 
   redis:
     image: docker.io/redis:7
-    restart: always
+    restart: "no"  # opt-in: only runs when started explicitly (memory)
     # CHANGEME: row below to secure redis password
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
@@ -195,7 +195,7 @@ services:
 
   postgres:
     image: docker.io/postgres:${POSTGRES_VERSION:-17}
-    restart: always
+    restart: "no"  # opt-in: only runs when started explicitly (memory)
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 3s

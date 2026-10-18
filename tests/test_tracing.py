@@ -35,6 +35,7 @@ def recorded(monkeypatch):
 
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
     monkeypatch.setenv("LANGFUSE_HOST", "http://127.0.0.1:3000")
+    monkeypatch.setattr(tracing, "_reachable", lambda host, port: True)
     monkeypatch.setattr("langfuse.get_client", lambda: FakeClient())
     monkeypatch.setattr("langfuse.propagate_attributes", fake_propagate)
     monkeypatch.setattr(tracing, "callbacks", lambda: [])
@@ -62,12 +63,20 @@ def test_disabled_tracing_is_noop(monkeypatch):
 ])
 def test_tracing_only_enabled_for_local_langfuse(monkeypatch, host, base_url, expected):
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
+    monkeypatch.setattr(tracing, "_reachable", lambda host, port: True)
     for var, val in (("LANGFUSE_HOST", host), ("LANGFUSE_BASE_URL", base_url)):
         if val:
             monkeypatch.setenv(var, val)
         else:
             monkeypatch.delenv(var, raising=False)
     assert tracing.enabled() is expected
+
+
+def test_tracing_off_when_local_langfuse_is_not_running(monkeypatch):
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
+    monkeypatch.setenv("LANGFUSE_HOST", "http://127.0.0.1:1")  # nothing listens on port 1
+    tracing._reachable.cache_clear()
+    assert tracing.enabled() is False
 
 
 def test_chat_turn_is_one_named_trace_per_turn_in_a_session(recorded):

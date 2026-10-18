@@ -1,15 +1,28 @@
 """Langfuse tracing, opt-in via LANGFUSE_PUBLIC_KEY. Traces go to the self-hosted instance only."""
 import os
+import socket
 from contextlib import contextmanager
+from functools import lru_cache
 from urllib.parse import urlparse
 
 
 def enabled() -> bool:
     # Traces carry note excerpts, so only a local Langfuse counts. The SDK would otherwise
     # silently default to cloud.langfuse.com when no host is set.
-    host = os.environ.get("LANGFUSE_HOST") or os.environ.get("LANGFUSE_BASE_URL") or ""
-    local = urlparse(host).hostname in ("127.0.0.1", "localhost", "::1")
-    return bool(os.environ.get("LANGFUSE_PUBLIC_KEY")) and local
+    url = urlparse(os.environ.get("LANGFUSE_HOST") or os.environ.get("LANGFUSE_BASE_URL") or "")
+    local = url.hostname in ("127.0.0.1", "localhost", "::1")
+    return bool(os.environ.get("LANGFUSE_PUBLIC_KEY")) and local and _reachable(url.hostname, url.port or 80)
+
+
+# ponytail: checked once per process; start Langfuse before the app to get traces
+@lru_cache
+def _reachable(host: str, port: int) -> bool:
+    """Keys in .env but Langfuse stopped: skip tracing instead of retrying every span export."""
+    try:
+        socket.create_connection((host, port), timeout=0.5).close()
+        return True
+    except OSError:
+        return False
 
 
 def callbacks() -> list:

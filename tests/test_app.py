@@ -12,6 +12,7 @@ def test_run_config_with_langfuse(monkeypatch):
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-lf-test")
     monkeypatch.setenv("LANGFUSE_HOST", "http://127.0.0.1:3000")
+    monkeypatch.setattr("studyforge.tracing._reachable", lambda host, port: True)
     cfg = app.run_config("t1")
     assert type(cfg["callbacks"][0]).__name__ == "LangchainCallbackHandler"
 
