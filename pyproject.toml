@@ -11,6 +11,7 @@ dependencies = [
     "llama-index-postprocessor-sbert-rerank>=0.6",
     "tree-sitter-language-pack",
     "torch>=2.6",
+    "torchvision",  # direct only so it can use the CPU index below; PyPI's Linux wheel needs CUDA torch
     "langgraph>=1.2.12",
     "langchain>=1.4.3",
     "langchain-anthropic>=1.7.4",
@@ -44,6 +45,7 @@ packages = ["src/studyforge"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
