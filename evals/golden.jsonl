@@ -13,3 +13,23 @@
 {"q": "Who won the 1998 FIFA World Cup?", "expect": null}
 {"q": "How do I bake sourdough bread?", "expect": null}
 {"q": "What is the capital of Australia?", "expect": null}
+{"q": "How much extra memory does merge sort need?", "expect": "uni-a/ALG101/sorting.md"}
+{"q": "Which simple sort is fast on nearly sorted input?", "expect": "uni-a/ALG101/sorting.md"}
+{"q": "Hvorfor velger man pivot tilfeldig i quicksort?", "expect": "uni-a/ALG101/sorting.md"}
+{"q": "What is depth-first search used for?", "expect": "uni-a/ALG101/graphs.md"}
+{"q": "When is a topological order defined?", "expect": "uni-a/ALG101/graphs.md", "uni": "uni-a", "course": "ALG101"}
+{"q": "How does the quicksort code handle elements equal to the pivot?", "expect": "uni-a/ALG101/code/quicksort.py"}
+{"q": "How long is a written exam?", "expect": "uni-a/admin/exam-rules.md"}
+{"q": "Which grade is a fail?", "expect": "uni-a/admin/exam-rules.md"}
+{"q": "Hva er virkeetikk ifølge Aristoteles?", "expect": "uni-b/FIL110/etikk.md"}
+{"q": "Does Kant's duty ethics care about consequences?", "expect": "uni-b/FIL110/etikk.md", "uni": "uni-b", "course": "FIL110"}
+{"q": "What does ordinary least squares minimise?", "expect": "uni-b/STAT200/regression.md"}
+{"q": "What are the assumptions of linear regression?", "expect": "uni-b/STAT200/regression.md"}
+{"q": "What problem does multicollinearity cause?", "expect": "uni-b/STAT200/regression.md"}
+{"q": "How is statistical power related to type II error?", "expect": "uni-b/STAT200/hypothesis-testing.md"}
+{"q": "Which test compares the means of two independent groups?", "expect": "uni-b/STAT200/hypothesis-testing.md"}
+{"q": "Hva betyr en p-verdi på 0.03 med alfa 0.05?", "expect": "uni-b/STAT200/exams/2025-exam.md"}
+{"q": "Who is the current prime minister of Norway?", "expect": null}
+{"q": "Recommend a good recipe for pancakes", "expect": null}
+{"q": "What is the time complexity of heapsort?", "expect": null}
+{"q": "Explain the Bellman-Ford algorithm", "expect": null}

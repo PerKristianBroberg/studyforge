@@ -11,6 +11,8 @@ Each course gets its own expert agent that answers only from that course's notes
 - **Calendar** (`/calendar`) — finds exams and arbeidskrav in your documents as confirmable suggestions,
   then plans study blocks around your weekly availability (deterministic planner, no LLM).
 
+![Chat answer with clickable citations; the cited note opens in the side panel](docs/demo.jpg)
+
 Embeddings (bge-m3), reranking (bge-reranker-v2-m3), parsing (Docling), OCR (EasyOCR) and tracing (Langfuse)
 all run locally; only the model calls go to Anthropic. Full walkthrough: [docs/how-it-works.md](docs/how-it-works.md).
 
@@ -43,6 +45,20 @@ uv run pytest                    # unit + integration (integration needs Postgre
 uv run pytest -m eval evals -s   # retrieval quality (Ragas) on samples/ (downloads models)
 ```
 
+Latest results on [`evals/golden.jsonl`](evals/golden.jsonl) (35 cases: 28 answerable, incl. Norwegian↔English
+and scoped questions, plus 7 that must be refused, 2 of them near-misses like "heapsort" that the notes don't cover):
+
+| Eval | Result | CI threshold |
+|---|---|---|
+| Retrieval hit@6 | 1.00 | ≥ 0.90 |
+| Retrieval MRR | 0.98 | ≥ 0.70 |
+| Refusals (retrieval) | 7/7 | all |
+| Answer faithfulness (Ragas, Haiku judge) | 0.95 | ≥ 0.80 |
+| Refusals (end-to-end) | 7/7 | all |
+
+The samples are small, so these show the pipeline works and catch regressions; they don't measure quality on
+real lecture PDFs.
+
 ## Tracing (optional, local only)
 
 `docker compose --env-file .env -f infra/langfuse/docker-compose.yml up -d`, then open http://127.0.0.1:3000.
@@ -51,5 +67,5 @@ one `chat-turn` trace (session = conversation), with `route-question`, `retrieve
 
 ## Not built yet
 
-An MCP server over the same backend is in the [design spec](docs/superpowers/specs/2026-09-29-studyforge-design.md)
+An MCP server over the same backend is designed
 but deliberately deferred; so is Google Calendar sync.

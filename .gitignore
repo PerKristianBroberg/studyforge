@@ -15,3 +15,7 @@ public/avatars/*
 .superpowers/
 *.pdf
 !samples/**/*.pdf
+docs/superpowers/
+.claude/
+.chainlit/translations/*
+!.chainlit/translations/en-US.json

@@ -12,6 +12,7 @@ from psycopg import Connection
 from studyforge import app, calendar_api, ingest, library_api
 from studyforge.config import Settings
 from studyforge.experts import discover
+from studyforge.paths import CODE_LANGS
 from studyforge.sources import cited, passages, split_label
 from studyforge.store import Manifest
 from studyforge.uploads import UploadRejected, parse_scope, save_upload
@@ -142,7 +143,8 @@ def _source_elements(answer: str, tool_texts: list[str]) -> list:
         if file.suffix.lower() == ".pdf" and file.exists():
             elements.append(cl.Pdf(name=label, path=str(file), page=page or 1, display="side"))
         else:  # non-PDF, or the file is gone: show the retrieved passage
-            elements.append(cl.Text(name=label, content=found.get(label, "(passage not available)"), display="side"))
+            elements.append(cl.Text(name=label, content=found.get(label, "(passage not available)"), display="side",
+                                    language=CODE_LANGS.get(file.suffix.lower())))  # code keeps its indentation
     return elements
 
 

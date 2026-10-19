@@ -225,6 +225,23 @@ Each result is a `Hit(text, score, path, page, uni, course)`; `Hit.cite()` gives
 
 ## 6. Agents: who answers your question
 
+### 6.0 Why one agent per course, not one agent with a course filter
+
+Under the hood an expert *is* a metadata filter — `Scope` — plus a persona. The simpler design would be one agent
+whose `search_notes(query, uni, course)` lets the model pick the filter. Experts were chosen instead because:
+
+- **The scope is not the model's choice.** `make_tools` closes over the scope, so the tool has no `course`
+  parameter to get wrong, leave out or widen. A misrouted question gives "Not in your notes", never a confident
+  answer from another course's material.
+- **Course codes are opaque.** `ALG101` tells the model nothing; a persona per expert gives both the router and
+  the answering model the course's vocabulary.
+- **Users can pin an expert** (chat profile / `--expert`) and skip routing entirely, and follow-ups stay with
+  the same expert.
+
+The cost is one extra Haiku call per turn and the risk of a misroute, which falls back to `general` (6.3).
+With one university and a few courses, a filter parameter would be fine; the experts pay off as courses
+multiply and their vocabularies overlap (statistics shows up in both an NHH finance course and a UiB stats course).
+
 ### 6.1 Experts are discovered from folders
 
 `experts.discover(notes_dir)` builds the expert list straight from the folder tree — no configuration:
